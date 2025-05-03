@@ -299,19 +299,19 @@ export default function TranscriptView({ params }: { params: Promise<{ id: strin
                 )}
                 
                 {/* Regular Transcript Text (always shown) */}
-                <div className="prose max-w-none">
+              <div className="prose max-w-none">
                   <h2 className="text-lg font-medium text-gray-900 mb-4">Full Transcript</h2>
                   
                   {/* Transcription Disclaimer */}
                   <TranscriptionDisclaimer />
                   
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    {transcript.transcription_text ? (
-                      <p className="whitespace-pre-wrap">{transcript.transcription_text}</p>
-                    ) : (
-                      <p className="text-gray-500">No transcript text available.</p>
-                    )}
-                  </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  {transcript.transcription_text ? (
+                    <p className="whitespace-pre-wrap">{transcript.transcription_text}</p>
+                  ) : (
+                    <p className="text-gray-500">No transcript text available.</p>
+                  )}
+                </div>
                 </div>
                 
                 {/* Sentiment Analysis (if available) */}

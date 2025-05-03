@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Analytics } from '@vercel/analytics/react';
+import CookieConsentBanner from '@/components/CookieConsentBanner';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Yolo Transcript',
-  description: 'Convert your audio and video files into text transcripts with Yolo Transcript.',
+  title: 'Yolo Transcript - AI-Powered Audio & Video Transcription',
+  description: 'Accurate transcription service powered by AI with features like speaker diarization, custom vocabulary, and sentiment analysis.',
   icons: {
     icon: [
       { url: '/favicon.ico' },
@@ -31,24 +32,24 @@ export const metadata: Metadata = {
   },
   manifest: '/site.webmanifest',
   openGraph: {
-    title: 'Yolo Transcript - Audio & Video Transcription',
-    description: 'Fast, accurate speech-to-text conversion powered by AI. Transform your audio and video content into easily readable transcripts.',
+    title: 'Yolo Transcript - AI-Powered Audio & Video Transcription',
+    description: 'Accurate transcription service powered by AI with features like speaker diarization, custom vocabulary, and sentiment analysis.',
     type: 'website',
     url: 'https://yolotranscript.com',
     images: [
       {
-        url: '/images/yolo-transcript-social.png',
+        url: '/images/yolo-transcript-og.png',
         width: 1200,
         height: 630,
-        alt: 'Yolo Transcript - Audio to Text Conversion',
-      },
+        alt: 'Yolo Transcript',
+      }
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Yolo Transcript - Audio & Video Transcription',
-    description: 'Fast, accurate speech-to-text conversion powered by AI',
-    images: ['/images/yolo-transcript-social.png'],
+    title: 'Yolo Transcript - AI-Powered Audio & Video Transcription',
+    description: 'Accurate transcription service powered by AI with features like speaker diarization, custom vocabulary, and sentiment analysis.',
+    images: ['/images/yolo-transcript-twitter.png'],
     creator: '@Afnanxkhan_ak',
   },
 };
@@ -64,6 +65,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        <CookieConsentBanner />
         <Analytics />
       </body>
     </html>

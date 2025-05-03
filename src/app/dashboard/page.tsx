@@ -56,7 +56,7 @@ export default function Dashboard() {
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-gray-900">Transcription Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Transcription Dashboard</h1>
           </div>
         </div>
       </header>

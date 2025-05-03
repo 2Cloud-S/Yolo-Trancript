@@ -44,22 +44,23 @@ export default function TermsOfServicePage() {
             </div>
 
             <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">2. Use License</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">2. Description of Service</h2>
               
               <p className="mb-4">
-                Permission is granted to temporarily use the materials (information or software) on Yolo Transcript for personal, non-commercial use only. This is the grant of a license, not a transfer of title, and under this license you may not:
+                Yolo Transcript provides an AI-powered audio and video transcription service that converts spoken content into text. Our service includes features such as:
               </p>
               
               <ul className="list-disc pl-5 mb-4">
-                <li>Modify or copy the materials</li>
-                <li>Use the materials for any commercial purpose</li>
-                <li>Attempt to decompile or reverse engineer any software contained on Yolo Transcript</li>
-                <li>Remove any copyright or other proprietary notations from the materials</li>
-                <li>Transfer the materials to another person or "mirror" the materials on any other server</li>
+                <li>Audio and video transcription</li>
+                <li>Speaker diarization (identifying different speakers)</li>
+                <li>Custom vocabulary support for specialized terminology</li>
+                <li>Sentiment analysis</li>
+                <li>Integration with cloud storage providers like Google Drive</li>
+                <li>Transcript export in various formats</li>
               </ul>
               
               <p>
-                This license shall automatically terminate if you violate any of these restrictions and may be terminated by Yolo Transcript at any time.
+                We reserve the right to modify, suspend, or discontinue any part of the service at any time without prior notice.
               </p>
             </div>
 
@@ -76,18 +77,34 @@ export default function TermsOfServicePage() {
             </div>
 
             <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">4. Payment and Subscription</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">4. Credit-Based System and Payments</h2>
               
               <p className="mb-4">
-                Some aspects of the Service may be provided for a fee. You will be required to select a payment plan and provide accurate information regarding your payment method.
+                Yolo Transcript operates on a credit-based system. Credits are used to pay for transcription services, with costs varying based on the length and complexity of the audio or video.
               </p>
               
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Credit Packs</h3>
               <p className="mb-4">
-                Subscription fees are billed in advance on a monthly or annual basis. Your subscription will automatically renew unless you cancel at least 24 hours before the end of the current billing period.
+                Users can purchase credit packs of various sizes. Each credit pack allows for a specific amount of transcription time. Credit packs may vary in price and available transcription minutes. The current credit pack options and pricing can be found on our <Link href="/pricing" className="text-blue-600 hover:underline">Pricing</Link> page.
+              </p>
+              
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Credit Usage</h3>
+              <p className="mb-4">
+                Credits are deducted from your account based on the following factors:
+              </p>
+              <ul className="list-disc pl-5 mb-4">
+                <li>Length of the audio or video file</li>
+                <li>Use of additional features such as speaker diarization, custom vocabulary, or sentiment analysis</li>
+                <li>Priority processing (if available)</li>
+              </ul>
+              
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Payment Terms</h3>
+              <p className="mb-4">
+                All purchases of credit packs are final and non-refundable unless required by law. We accept payment through our supported payment processors.
               </p>
               
               <p>
-                We reserve the right to change our subscription plans or adjust pricing at our sole discretion. Any changes to pricing will be communicated to you in advance.
+                We reserve the right to change credit pricing or the credit-to-minute conversion rate at our sole discretion. Any changes to pricing will be communicated to you in advance and will not affect previously purchased credits.
               </p>
             </div>
 
@@ -105,13 +122,60 @@ export default function TermsOfServicePage() {
                 <li>Violates any applicable law or regulation</li>
               </ul>
               
+              <p className="mb-4">
+                You retain all ownership rights to your content. By uploading content to our service, you grant Yolo Transcript a limited license to use, process, and store your content solely for the purpose of providing the transcription service to you.
+              </p>
+              
               <p>
                 We reserve the right to remove any content that violates these terms or is otherwise objectionable at our sole discretion.
               </p>
             </div>
 
             <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">6. Limitation of Liability</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">6. Third-Party Integrations</h2>
+              
+              <p className="mb-4">
+                Yolo Transcript offers integration with third-party services such as Google Drive. By using these integrations, you agree to comply with the terms of service of these third-party providers.
+              </p>
+              
+              <p className="mb-4">
+                For Google Drive integration:
+              </p>
+              <ul className="list-disc pl-5 mb-4">
+                <li>You authorize Yolo Transcript to access your Google Drive account for the purpose of saving and managing your transcriptions.</li>
+                <li>You can revoke this access at any time by disconnecting the integration within your account settings or through Google's security settings.</li>
+                <li>We store access tokens securely and only use them for the authorized purposes.</li>
+              </ul>
+              
+              <p>
+                We are not responsible for any issues that may arise from the use of third-party services or changes in their APIs or terms of service.
+              </p>
+            </div>
+
+            <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">7. Transcription Accuracy</h2>
+              
+              <p className="mb-4">
+                While we strive to provide accurate transcriptions, our service relies on artificial intelligence and may not be 100% accurate. Factors that can affect accuracy include:
+              </p>
+              <ul className="list-disc pl-5 mb-4">
+                <li>Audio quality and background noise</li>
+                <li>Accents and dialects</li>
+                <li>Technical terminology or uncommon words</li>
+                <li>Multiple speakers talking simultaneously</li>
+              </ul>
+              
+              <p className="mb-4">
+                We offer features like custom vocabulary to improve accuracy for specialized terminology. However, we do not guarantee perfect transcription and recommend that users review and edit transcripts for critical content.
+              </p>
+              
+              <p>
+                Yolo Transcript shall not be liable for any inaccuracies in transcriptions or any decisions made based on the content of transcriptions.
+              </p>
+            </div>
+
+            <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">8. Limitation of Liability</h2>
               
               <p className="mb-4">
                 In no event shall Yolo Transcript or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the materials on the Service, even if Yolo Transcript or a Yolo Transcript authorized representative has been notified orally or in writing of the possibility of such damage.
@@ -123,7 +187,19 @@ export default function TermsOfServicePage() {
             </div>
 
             <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">7. Changes to Terms</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">9. Data Security and Privacy</h2>
+              
+              <p className="mb-4">
+                Your privacy is important to us. Our <Link href="/privacy-policy" className="text-blue-600 hover:underline">Privacy Policy</Link> describes how we collect, use, and protect your personal information and uploaded content.
+              </p>
+              
+              <p>
+                We implement technical and organizational measures to protect your data, but no method of transmission over the Internet or method of electronic storage is 100% secure. While we strive to use commercially acceptable means to protect your personal information, we cannot guarantee its absolute security.
+              </p>
+            </div>
+
+            <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">10. Changes to Terms</h2>
               
               <p>
                 Yolo Transcript may revise these terms of service for its website at any time without notice. By using this website you are agreeing to be bound by the then current version of these terms of service.
@@ -131,10 +207,18 @@ export default function TermsOfServicePage() {
             </div>
 
             <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">8. Governing Law</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">11. Governing Law</h2>
               
               <p>
                 These terms and conditions are governed by and construed in accordance with the laws of the United States and you irrevocably submit to the exclusive jurisdiction of the courts in that location.
+              </p>
+            </div>
+
+            <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">12. Contact Information</h2>
+              
+              <p>
+                If you have any questions about these Terms of Service, please contact us at contact@yolo-transcript.com.
               </p>
             </div>
           </div>
@@ -157,6 +241,9 @@ export default function TermsOfServicePage() {
               </Link>
               <Link href="/cookie-policy" className="text-gray-400 hover:text-white text-sm">
                 Cookie Policy
+              </Link>
+              <Link href="/refund-policy" className="text-gray-400 hover:text-white text-sm">
+                Refund Policy
               </Link>
             </div>
           </div>

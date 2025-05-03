@@ -61,13 +61,13 @@ export default function Home() {
                     Pricing
                   </Link>
                   <Link
-                    href="/auth/login"
+                    href="/auth/login?redirect=/dashboard"
                     className="text-gray-900 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium"
                   >
                     Sign In
                   </Link>
                   <Link
-                    href="/auth/register"
+                    href="/auth/register?redirect=/dashboard"
                     className="inline-flex items-center px-4 py-2 border border-gray-900 text-sm font-medium rounded-md text-gray-900 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                   >
                     Create Account
@@ -93,15 +93,15 @@ export default function Home() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4">
                 <Link
-                  href={user ? "/dashboard" : "/dashboard"}
+                  href={user ? "/dashboard" : "/auth/login?redirect=/dashboard"}
                   className="px-8 py-3 text-base font-medium rounded-md text-gray-900 bg-white border-2 border-gray-900 hover:bg-gray-50 md:py-4 md:text-lg md:px-10 inline-flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
                 >
                   <Upload className="mr-2 h-5 w-5" />
-                  Upload Now
+                  {user ? "Upload Now" : "Sign In to Upload"}
                 </Link>
                 {!user && (
                   <Link
-                    href="/auth/register"
+                    href="/auth/register?redirect=/dashboard"
                     className="px-8 py-3 text-base font-medium rounded-md text-white bg-gray-900 border-2 border-gray-900 hover:bg-gray-800 md:py-4 md:text-lg md:px-10 inline-flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(255,255,255,0.5)]"
                   >
                     Create Free Account
@@ -443,7 +443,8 @@ export default function Home() {
                 {[
                   { name: 'Privacy Policy', path: '/privacy-policy' },
                   { name: 'Terms of Service', path: '/terms-of-service' },
-                  { name: 'Cookie Policy', path: '/cookie-policy' }
+                  { name: 'Cookie Policy', path: '/cookie-policy' },
+                  { name: 'Refund Policy', path: '/refund-policy' }
                 ].map(item => (
                   <li key={item.name}>
                     <a href={item.path} className="text-gray-400 hover:text-white text-sm">{item.name}</a>

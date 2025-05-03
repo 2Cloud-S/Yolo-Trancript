@@ -259,8 +259,8 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
           )}
         </div>
         
-        <div
-          {...getRootProps()}
+      <div
+        {...getRootProps()}
           className={`flex justify-center rounded-lg border-2 border-dashed px-6 py-10 ${
             isDragActive
               ? 'border-indigo-600 bg-indigo-50'
@@ -292,13 +292,13 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
                 <p className="mt-1 text-xs text-gray-500">
                   {(file.size / 1024 / 1024).toFixed(2)} MB
                 </p>
-              </div>
-            ) : (
-              <div>
+          </div>
+        ) : (
+          <div>
                 <div className="mx-auto h-12 w-12 text-gray-400">
                   <svg className="h-full w-full" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
+            </svg>
                 </div>
                 <div className="mt-4 flex text-sm leading-6 text-gray-600">
                   <label className="relative cursor-pointer rounded-md bg-white font-semibold text-indigo-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-600 focus-within:ring-offset-2 hover:text-indigo-500">

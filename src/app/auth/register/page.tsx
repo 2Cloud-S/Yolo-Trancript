@@ -1,9 +1,9 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, Lock, AlertCircle, User, ArrowRight } from 'lucide-react';
 import EnvWarning from '@/components/EnvWarning';
 import YoloMascot from '@/components/YoloMascot';
@@ -14,6 +14,8 @@ export default function Register() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectPath = searchParams.get('redirect') || '/dashboard';
 
   const handleRegister = async (e: FormEvent) => {
     e.preventDefault();
@@ -25,11 +27,14 @@ export default function Register() {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectPath)}`,
         },
       });
 
       if (error) throw error;
+      
+      // Store redirect path in sessionStorage to use after verification
+      sessionStorage.setItem('redirectAfterAuth', redirectPath);
       
       // Show success message or redirect
       router.push('/auth/verify-email');

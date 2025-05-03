@@ -27,7 +27,7 @@ export default function PrivacyPolicyPage() {
           <div className="text-center mb-12">
             <YoloMascot pose="coding" size="md" className="mx-auto mb-6" />
             <h1 className="text-4xl font-extrabold text-gray-900 mb-4">Privacy Policy</h1>
-            <p className="text-xl text-gray-600">Last Updated: May 3, 2025</p>
+            <p className="text-xl text-gray-600">Last Updated: June 10, 2024</p>
           </div>
 
           <div className="prose prose-lg max-w-none">
@@ -58,8 +58,25 @@ export default function PrivacyPolicyPage() {
               </ul>
               
               <h3 className="text-xl font-bold text-gray-900 mb-2">Audio and Video Content</h3>
-              <p>
+              <p className="mb-4">
                 We collect and process the audio and video files you upload for transcription purposes. This content may contain personal information depending on what is recorded in the files.
+              </p>
+
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Transcription Data</h3>
+              <p className="mb-4">
+                We collect and store the transcriptions generated from your audio and video files, including:
+              </p>
+              <ul className="list-disc pl-5 mb-4">
+                <li>Full text transcripts</li>
+                <li>Speaker diarization information (who said what)</li>
+                <li>Sentiment analysis data (if enabled)</li>
+                <li>Custom vocabulary terms you've provided</li>
+                <li>Timestamps and metadata associated with the transcription</li>
+              </ul>
+
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Integration Information</h3>
+              <p>
+                If you connect third-party services like Google Drive, we collect and store authentication tokens and necessary account information to enable these integrations to function properly.
               </p>
             </div>
 
@@ -67,32 +84,85 @@ export default function PrivacyPolicyPage() {
               <h2 className="text-2xl font-bold text-gray-900 mb-4">3. How We Use Your Information</h2>
               
               <p className="mb-4">We use the information we collect to:</p>
-              <ul className="list-disc pl-5">
-                <li>Provide, maintain, and improve our services</li>
+              <ul className="list-disc pl-5 mb-4">
+                <li>Provide, maintain, and improve our transcription services</li>
+                <li>Process and complete transcription requests</li>
+                <li>Apply custom vocabulary and speaker diarization as requested</li>
+                <li>Perform sentiment analysis when enabled</li>
+                <li>Facilitate integrations with third-party services like Google Drive</li>
                 <li>Process transactions and send related information</li>
                 <li>Send you technical notices, updates, and support messages</li>
                 <li>Respond to your comments and questions</li>
-                <li>Develop new products and services</li>
+                <li>Develop new features and services</li>
                 <li>Monitor and analyze trends, usage, and activities</li>
                 <li>Prevent fraudulent transactions and monitor against theft</li>
               </ul>
             </div>
 
             <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">4. Data Retention</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">4. Third-Party Services</h2>
+              
+              <p className="mb-4">
+                Our service relies on trusted third-party providers to deliver various aspects of our transcription service:
+              </p>
+              
+              <ul className="list-disc pl-5 mb-4">
+                <li><strong>AssemblyAI</strong>: We use AssemblyAI to process and transcribe your audio and video files. Your content is transmitted to their service for processing. Please review <a href="https://www.assemblyai.com/privacy" className="text-blue-600 hover:underline">AssemblyAI's Privacy Policy</a> for more information.</li>
+                <li><strong>Supabase</strong>: We use Supabase for user authentication and data storage. Your account information and transcription data are stored in our Supabase database.</li>
+                <li><strong>Google Drive</strong>: If you enable Google Drive integration, we will interact with Google's APIs to store and manage your transcriptions in your Google Drive account.</li>
+                <li><strong>Vercel</strong>: Our application is hosted on Vercel, which processes user requests and may collect basic usage information.</li>
+              </ul>
               
               <p>
-                We retain your personal information for as long as necessary to provide the services you've requested, comply with our legal obligations, resolve disputes, and enforce our agreements. Audio and video files are stored for 30 days after transcription, after which they are permanently deleted unless you opt for extended storage.
+                We select partners with strong privacy practices, but we encourage you to review their respective privacy policies to understand how they handle your data.
               </p>
             </div>
 
             <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">5. Your Rights</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">5. Data Retention</h2>
+              
+              <p className="mb-4">
+                We retain your personal information for as long as necessary to provide the services you've requested, comply with our legal obligations, resolve disputes, and enforce our agreements. Specifically:
+              </p>
+              
+              <ul className="list-disc pl-5 mb-4">
+                <li><strong>Audio and Video Files</strong>: Your uploaded files are stored for 30 days after transcription, after which they are permanently deleted unless you opt for extended storage.</li>
+                <li><strong>Transcription Data</strong>: Your transcripts are stored in your account until you delete them or close your account.</li>
+                <li><strong>Custom Vocabulary</strong>: Your custom vocabulary lists are stored until you delete them or close your account.</li>
+                <li><strong>Integration Tokens</strong>: Authentication tokens for services like Google Drive are stored securely until you disconnect the integration or close your account.</li>
+              </ul>
+              
+              <p>
+                You can delete your data at any time through your account settings. Upon account deletion, we will remove all your personal data within 30 days, except where we have a legal obligation to retain certain information.
+              </p>
+            </div>
+
+            <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">6. Data Security</h2>
+              
+              <p className="mb-4">
+                We implement appropriate technical and organizational measures to protect your personal data against unauthorized or unlawful processing, accidental loss, destruction, or damage. These measures include:
+              </p>
+              
+              <ul className="list-disc pl-5 mb-4">
+                <li>Secure HTTPS connections for all data transfers</li>
+                <li>Encryption of sensitive data at rest and in transit</li>
+                <li>Access controls and authentication mechanisms</li>
+                <li>Regular security assessments and updates</li>
+              </ul>
+              
+              <p>
+                While we strive to use commercially acceptable means to protect your personal information, we cannot guarantee its absolute security. No method of transmission over the Internet or electronic storage is 100% secure.
+              </p>
+            </div>
+
+            <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">7. Your Rights</h2>
               
               <p className="mb-4">
                 Depending on your location, you may have certain rights regarding your personal information, including:
               </p>
-              <ul className="list-disc pl-5">
+              <ul className="list-disc pl-5 mb-4">
                 <li>The right to access personal information we hold about you</li>
                 <li>The right to request correction of inaccurate information</li>
                 <li>The right to request deletion of your information</li>
@@ -100,18 +170,30 @@ export default function PrivacyPolicyPage() {
                 <li>The right to data portability</li>
                 <li>The right to withdraw consent</li>
               </ul>
-            </div>
-
-            <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">6. Changes To This Policy</h2>
               
               <p>
-                We may update this privacy policy from time to time. We will notify you of any changes by posting the new privacy policy on this page and updating the "Last Updated" date.
+                If you wish to exercise any of these rights, please contact us at privacy@yolo-transcript.com. We will respond to your request within 30 days.
               </p>
             </div>
 
             <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">7. Contact Us</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">8. Children's Privacy</h2>
+              
+              <p>
+                Our service is not directed to children under the age of 16. We do not knowingly collect personal information from children under 16. If you are a parent or guardian and you believe your child has provided us with personal information, please contact us at privacy@yolo-transcript.com, and we will take steps to delete such information.
+              </p>
+            </div>
+
+            <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">9. Changes To This Policy</h2>
+              
+              <p>
+                We may update this privacy policy from time to time. We will notify you of any changes by posting the new privacy policy on this page and updating the "Last Updated" date. You are advised to review this Privacy Policy periodically for any changes.
+              </p>
+            </div>
+
+            <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mt-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">10. Contact Us</h2>
               
               <p>
                 If you have any questions about this Privacy Policy, please contact us at privacy@yolo-transcript.com.
@@ -126,7 +208,7 @@ export default function PrivacyPolicyPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <p className="text-gray-400">
-              &copy; 2025 Yolo Transcript. All rights reserved.
+              &copy; 2024 Yolo Transcript. All rights reserved.
             </p>
             <div className="flex space-x-6 mt-4 md:mt-0">
               <Link href="/about" className="text-gray-400 hover:text-white text-sm">
@@ -137,6 +219,9 @@ export default function PrivacyPolicyPage() {
               </Link>
               <Link href="/cookie-policy" className="text-gray-400 hover:text-white text-sm">
                 Cookie Policy
+              </Link>
+              <Link href="/refund-policy" className="text-gray-400 hover:text-white text-sm">
+                Refund Policy
               </Link>
             </div>
           </div>
