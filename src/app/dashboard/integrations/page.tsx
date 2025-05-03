@@ -1,0 +1,510 @@
+'use client';
+
+import { useState, useEffect, Suspense } from 'react';
+import { supabase } from '@/lib/supabase';
+import { 
+  Cloud,
+  HardDrive,
+  Database,
+  Server,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+  Settings,
+  AlertCircle
+} from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+
+interface Integration {
+  id: string;
+  provider: string;
+  status: 'connected' | 'disconnected';
+  connected_at?: string;
+  last_sync?: string;
+  settings?: {
+    auto_save: boolean;
+    folder_path?: string;
+    sync_frequency?: string;
+    tokens?: {
+      access_token: string;
+      refresh_token: string;
+      expires_at: number;
+    };
+  };
+}
+
+function IntegrationsContent() {
+  const [loading, setLoading] = useState(true);
+  const [integrations, setIntegrations] = useState<Integration[]>([]);
+  const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showFuturePopup, setShowFuturePopup] = useState(false);
+  const [futureProvider, setFutureProvider] = useState<string>('');
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const error = searchParams.get('error');
+    const success = searchParams.get('success');
+    
+    if (error) {
+      setError(decodeURIComponent(error));
+    } else if (success) {
+      setError(null);
+    }
+    
+    fetchIntegrations();
+  }, [searchParams]);
+
+  const availableIntegrations = [
+    {
+      id: 'google-drive',
+      name: 'Google Drive',
+      icon: HardDrive,
+      description: 'Save transcriptions directly to your Google Drive',
+      features: ['Auto-save transcriptions', 'Custom folder structure', 'Real-time sync'],
+      scopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive.metadata.readonly'
+      ]
+    },
+    {
+      id: 'dropbox',
+      name: 'Dropbox',
+      icon: Database,
+      description: 'Store your transcriptions in Dropbox',
+      features: ['Direct file upload', 'Version history', 'Team sharing'],
+      scopes: ['files.metadata.readwrite', 'files.content.write']
+    },
+    {
+      id: 'onedrive',
+      name: 'OneDrive',
+      icon: Server,
+      description: 'Integrate with Microsoft OneDrive',
+      features: ['Cloud storage', 'Office integration', 'Cross-platform sync'],
+      scopes: ['Files.ReadWrite', 'offline_access']
+    },
+    {
+      id: 'box',
+      name: 'Box',
+      icon: Cloud,
+      description: 'Enterprise-grade cloud storage with Box',
+      features: ['Secure storage', 'Advanced permissions', 'Workflow automation'],
+      scopes: ['base_preview', 'base_upload', 'item_upload']
+    }
+  ];
+
+  const fetchIntegrations = async () => {
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('integrations')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setIntegrations(data || []);
+    } catch (error) {
+      console.error('Error fetching integrations:', error);
+      setError('Failed to fetch integrations');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConnect = async (provider: string) => {
+    try {
+      const integration = availableIntegrations.find(i => i.id === provider);
+      if (!integration) throw new Error('Integration not found');
+
+      // Show popup for future integrations
+      if (provider !== 'google-drive') {
+        setFutureProvider(integration.name);
+        setShowFuturePopup(true);
+        return;
+      }
+
+      // Generate a random state for security
+      const state = Math.random().toString(36).substring(7);
+      
+      // Store state in localStorage for verification
+      localStorage.setItem('oauth_state', state);
+
+      let authUrl = '';
+      switch (provider) {
+        case 'google-drive':
+          authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
+            client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+            redirect_uri: `${window.location.origin}/api/integrations/google/callback`,
+            response_type: 'code',
+            scope: integration.scopes.join(' '),
+            access_type: 'offline',
+            prompt: 'consent',
+            state
+          });
+          break;
+        default:
+          throw new Error('Provider not implemented');
+      }
+
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Error initiating OAuth:', error);
+      setError('Failed to connect to ' + provider);
+    }
+  };
+
+  const handleDisconnect = async (integration: Integration) => {
+    try {
+      // Revoke OAuth tokens if they exist
+      if (integration.settings?.tokens) {
+        switch (integration.provider) {
+          case 'google-drive':
+            await fetch('https://oauth2.googleapis.com/revoke', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: new URLSearchParams({
+                token: integration.settings.tokens.access_token,
+                client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+                client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+              }),
+            });
+            break;
+          // Add other providers here
+        }
+      }
+
+      const { error } = await supabase
+        .from('integrations')
+        .delete()
+        .eq('id', integration.id)
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id);
+
+      if (error) throw error;
+
+      await fetchIntegrations();
+    } catch (error) {
+      console.error('Error disconnecting integration:', error);
+      setError('Failed to disconnect from ' + integration.provider);
+    }
+  };
+
+  const handleUpdateSettings = async (integration: Integration, settings: any) => {
+    try {
+      const { error } = await supabase
+        .from('integrations')
+        .update({ settings })
+        .eq('id', integration.id)
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id);
+
+      if (error) throw error;
+
+      await fetchIntegrations();
+      setSelectedIntegration(null);
+    } catch (error) {
+      console.error('Error updating integration settings:', error);
+      setError('Failed to update settings');
+    }
+  };
+
+  const handleSync = async (integration: Integration) => {
+    try {
+      // Implement sync logic for each provider
+      switch (integration.provider) {
+        case 'google-drive':
+          // Check if token needs refresh
+          if (integration.settings?.tokens?.expires_at && 
+              Date.now() >= integration.settings.tokens.expires_at) {
+            const response = await fetch('https://oauth2.googleapis.com/token', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: new URLSearchParams({
+                client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+                client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+                refresh_token: integration.settings.tokens.refresh_token,
+                grant_type: 'refresh_token',
+              }),
+            });
+
+            const tokens = await response.json();
+            if (!response.ok) throw new Error('Failed to refresh token');
+
+            // Update the integration with new tokens
+            await handleUpdateSettings(integration, {
+              ...integration.settings,
+              tokens: {
+                ...integration.settings.tokens,
+                access_token: tokens.access_token,
+                expires_at: Date.now() + (tokens.expires_in * 1000),
+              }
+            });
+          }
+
+          // Sync files
+          const response = await fetch('https://www.googleapis.com/drive/v3/files', {
+            headers: {
+              'Authorization': `Bearer ${integration.settings?.tokens?.access_token}`,
+            },
+          });
+
+          if (!response.ok) throw new Error('Failed to sync files');
+
+          // Update last sync time
+          await handleUpdateSettings(integration, {
+            ...integration.settings,
+            last_sync: new Date().toISOString()
+          });
+          break;
+        // Add other providers here
+      }
+
+      await fetchIntegrations();
+    } catch (error) {
+      console.error('Error syncing integration:', error);
+      setError('Failed to sync with ' + integration.provider);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      {error && (
+        <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <AlertCircle className="h-5 w-5 text-red-400" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Future Integration Popup */}
+      {showFuturePopup && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-lg font-medium text-gray-900">
+                Coming Soon!
+              </h3>
+              <button
+                onClick={() => setShowFuturePopup(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <span className="sr-only">Close</span>
+                ×
+              </button>
+            </div>
+            <div className="mt-2">
+              <p className="text-sm text-gray-500">
+                {futureProvider} integration is coming soon! We're working hard to bring you more cloud storage options.
+                Stay tuned for updates.
+              </p>
+            </div>
+            <div className="mt-4">
+              <button
+                onClick={() => setShowFuturePopup(false)}
+                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm"
+              >
+                Got it!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold text-gray-900">Integrations</h1>
+        <p className="mt-2 text-sm text-gray-600">
+          Connect your cloud storage services to automatically save and sync your transcriptions.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-2">
+        {availableIntegrations.map((integration) => {
+          const connectedIntegration = integrations.find(i => i.id === integration.id);
+          const isConnected = connectedIntegration?.status === 'connected';
+
+          return (
+            <div
+              key={integration.id}
+              className="bg-white overflow-hidden shadow rounded-lg divide-y divide-gray-200"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <integration.icon className="h-8 w-8 text-gray-400" />
+                    </div>
+                    <div className="ml-4">
+                      <h3 className="text-lg font-medium text-gray-900">{integration.name}</h3>
+                      <p className="text-sm text-gray-500">{integration.description}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center">
+                    {isConnected ? (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Connected
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                        <XCircle className="h-4 w-4 mr-1" />
+                        Disconnected
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-2">Features</h4>
+                  <ul className="space-y-2">
+                    {integration.features.map((feature, index) => (
+                      <li key={index} className="flex items-center text-sm text-gray-600">
+                        <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="mt-6">
+                  {isConnected ? (
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => setSelectedIntegration(connectedIntegration)}
+                        className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        <Settings className="h-4 w-4 mr-2" />
+                        Settings
+                      </button>
+                      <button
+                        onClick={() => handleSync(connectedIntegration)}
+                        className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Sync
+                      </button>
+                      <button
+                        onClick={() => handleDisconnect(connectedIntegration)}
+                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleConnect(integration.id)}
+                      className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <Cloud className="h-4 w-4 mr-2" />
+                      Connect
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Settings Modal */}
+      {selectedIntegration && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  {selectedIntegration.provider} Settings
+                </h3>
+                <button
+                  onClick={() => setSelectedIntegration(null)}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <span className="sr-only">Close</span>
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIntegration.settings?.auto_save}
+                      onChange={(e) => handleUpdateSettings(selectedIntegration, {
+                        ...selectedIntegration.settings,
+                        auto_save: e.target.checked
+                      })}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">Auto-save transcriptions</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Folder Path
+                  </label>
+                  <input
+                    type="text"
+                    value={selectedIntegration.settings?.folder_path}
+                    onChange={(e) => handleUpdateSettings(selectedIntegration, {
+                      ...selectedIntegration.settings,
+                      folder_path: e.target.value
+                    })}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="/Transcriptions"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Sync Frequency
+                  </label>
+                  <select
+                    value={selectedIntegration.settings?.sync_frequency}
+                    onChange={(e) => handleUpdateSettings(selectedIntegration, {
+                      ...selectedIntegration.settings,
+                      sync_frequency: e.target.value
+                    })}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  >
+                    <option value="realtime">Real-time</option>
+                    <option value="hourly">Hourly</option>
+                    <option value="daily">Daily</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function IntegrationsPage() {
+  return (
+    <Suspense fallback={<div>Loading integrations...</div>}>
+      <IntegrationsContent />
+    </Suspense>
+  );
+} 
