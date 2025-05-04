@@ -24,17 +24,29 @@ export default function CreditPurchaseButton({
   const [user, setUser] = useState<{ email: string } | null>(null);
   const router = useRouter();
 
+  const logInfo = (message: string) => {
+    console.log(`[CreditPurchaseButton] ${message}`);
+  };
+
+  const logError = (message: string, error?: any) => {
+    console.error(`[CreditPurchaseButton] ${message}`, error || '');
+  };
+
   // Initialize Paddle and fetch user data on mount
   useEffect(() => {
     const init = async () => {
       try {
+        logInfo(`Initializing Paddle for ${packageName} purchase button...`);
         // Initialize Paddle
         const paddle = await initPaddle();
         if (paddle) {
+          logInfo('Paddle initialized successfully');
           setIsPaddleReady(true);
+        } else {
+          logError('Paddle initialization returned null');
         }
       } catch (error) {
-        console.error('Error initializing Paddle:', error);
+        logError('Error initializing Paddle:', error);
       }
     };
 
@@ -42,53 +54,93 @@ export default function CreditPurchaseButton({
 
     // Fetch user data
     const fetchUser = async () => {
-      console.log('Fetching user data for credit purchase...');
+      logInfo('Fetching user data for credit purchase...');
       const supabase = createClientComponentClient<Database>();
       const { data, error } = await supabase.auth.getUser();
       
       if (error) {
-        console.error('Error fetching user:', error);
+        logError('Error fetching user:', error);
         return;
       }
       
       if (data.user) {
-        console.log('User authenticated with email:', data.user.email);
+        logInfo(`User authenticated with email: ${data.user.email}`);
         setUser({ email: data.user.email || '' });
       } else {
-        console.log('No user authenticated for credit purchase');
+        logInfo('No user authenticated for credit purchase');
       }
     };
     
     fetchUser();
-  }, []);
+  }, [packageName]);
 
   const handlePurchase = async () => {
     try {
+      logInfo(`Button clicked for ${packageName} (${priceId})`);
       setIsLoading(true);
       
       // If user is not logged in, redirect to login
       if (!user) {
-        console.log('User not authenticated, redirecting to login');
+        logInfo('User not authenticated, redirecting to login');
         router.push('/auth/login');
         return;
       }
 
       // Ensure Paddle is ready
       if (!isPaddleReady) {
-        console.log('Paddle not ready, initializing...');
+        logInfo('Paddle not ready, initializing...');
         const paddle = await initPaddle();
         if (!paddle) {
           throw new Error('Failed to initialize Paddle');
         }
+        setIsPaddleReady(true);
       }
 
-      console.log(`Initiating purchase for ${packageName} (${priceId})`);
+      logInfo(`Initiating purchase for ${packageName} (${priceId}) for user ${user.email}`);
       
-      // Open Paddle checkout
+      // Try direct Paddle API first if available
+      if (typeof window !== 'undefined' && window.Paddle && window.Paddle.Checkout) {
+        try {
+          logInfo('Attempting to use direct Paddle API...');
+          
+          window.Paddle.Checkout.open({
+            items: [
+              {
+                priceId: priceId,
+                quantity: 1
+              }
+            ],
+            customer: {
+              email: user.email
+            },
+            settings: {
+              displayMode: 'overlay',
+              theme: 'light',
+              locale: 'en'
+            },
+            successCallback: () => {
+              logInfo('Checkout completed successfully via direct API');
+            },
+            closeCallback: () => {
+              logInfo('Checkout closed by user via direct API');
+              setIsLoading(false);
+            }
+          });
+          
+          logInfo('Direct Paddle API call completed - checkout should be visible');
+          return;
+        } catch (directApiError) {
+          logError('Error using direct Paddle API, falling back to openCheckout:', directApiError);
+        }
+      }
+      
+      // Fallback to openCheckout helper
+      logInfo('Using openCheckout helper...');
       await openCheckout(priceId, user.email);
+      logInfo('openCheckout call completed');
       
     } catch (error) {
-      console.error('Error during checkout process:', error);
+      logError('Error during checkout process:', error);
       alert('There was a problem initiating the checkout process. Please try again.');
     } finally {
       setIsLoading(false);
@@ -98,7 +150,7 @@ export default function CreditPurchaseButton({
   return (
     <button
       onClick={handlePurchase}
-      disabled={isLoading || (!user && isPaddleReady)}
+      disabled={isLoading}
       className={`inline-flex items-center justify-center ${className}`}
     >
       {isLoading ? (

@@ -8,24 +8,23 @@ import FileUpload from '@/components/FileUpload';
 import TranscriptList from '@/components/TranscriptList';
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 import { User } from '@supabase/supabase-js';
-import dynamic from 'next/dynamic';
 import { initPaddle } from '@/lib/paddle/client';
-
-// Import the PaddleDebugger component dynamically to ensure client-side only
-const PaddleDebugger = dynamic(() => import('./components/PaddleDebugger'), { ssr: false });
+import PaddleDebugButton from './components/PaddleDebugButton';
 
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showDebug, setShowDebug] = useState(false);
   const router = useRouter();
 
   // Initialize Paddle when dashboard loads
   useEffect(() => {
     const loadPaddle = async () => {
       try {
-        console.log('Pre-initializing Paddle from Dashboard');
+        console.log('Dashboard: Pre-initializing Paddle...');
         await initPaddle();
+        console.log('Dashboard: Paddle pre-initialization complete');
       } catch (error) {
         console.error('Failed to pre-initialize Paddle:', error);
       }
@@ -69,20 +68,20 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold text-gray-900">Transcription Dashboard</h1>
+            <button
+              onClick={() => setShowDebug(!showDebug)}
+              className="text-sm px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+            >
+              {showDebug ? 'Hide Debug' : 'Show Debug'}
+            </button>
           </div>
         </div>
       </header>
       
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {/* Add Paddle Debugger - Only visible in development */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mb-8 mx-4 p-4 border border-amber-300 bg-amber-50 rounded-md">
-            <h3 className="font-medium text-amber-800 mb-2">Development Tools</h3>
-            <PaddleDebugger />
-          </div>
-        )}
-        
         <div className="px-4 py-6 sm:px-0">
+          {showDebug && <PaddleDebugButton />}
+          
           <div className="bg-white shadow rounded-lg p-6 mb-8">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Upload a new file</h2>
             <FileUpload userId={user?.id} onUploadComplete={handleUploadComplete} />
