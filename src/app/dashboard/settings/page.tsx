@@ -1,21 +1,23 @@
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
 import { Database } from '@/types/supabase';
 import { CreditCard } from 'lucide-react';
 import { UserProfile } from './components/UserProfile';
 import { CreditHistoryTable } from './components/CreditHistoryTable';
+import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 export default async function SettingsPage() {
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = await createClient();
   
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  // Get the user and explicitly check with getUser instead of just getSession
+  const { data: { user }, error } = await supabase.auth.getUser();
 
-  if (!session) {
+  // Log authentication status for debugging
+  console.log("[SettingsPage] Auth check result:", { hasUser: !!user, error: error?.message });
+
+  if (!user || error) {
+    console.log("[SettingsPage] Redirecting to login - No authenticated user found");
     return redirect('/auth/login');
   }
   
@@ -33,7 +35,7 @@ export default async function SettingsPage() {
         <div>
           <h3 className="text-xl font-semibold mb-4">Profile</h3>
           <div className="bg-white rounded-lg border shadow-sm p-6">
-            <UserProfile user={session.user} />
+            <UserProfile user={user} />
           </div>
         </div>
         

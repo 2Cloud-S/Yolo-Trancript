@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { initPaddle } from '@/lib/paddle/client-debug';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { initPaddle, openCheckoutDebug } from '@/lib/paddle/client-debug';
+import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/types/supabase';
 
 export default function PaddleDebugButton() {
@@ -21,7 +21,7 @@ export default function PaddleDebugButton() {
     const fetchUser = async () => {
       try {
         addLog('Fetching user data...');
-        const supabase = createClientComponentClient<Database>();
+        const supabase = createClient();
         const { data, error } = await supabase.auth.getUser();
         
         if (error) {
@@ -97,53 +97,37 @@ export default function PaddleDebugButton() {
         await testPaddleInit();
       }
       
-      // Try direct API approach
-      addLog('Opening checkout using direct Paddle API...');
+      // Use the enhanced debug checkout function
+      addLog('Opening checkout using debug checkout function...');
       addLog(`PriceID being used: pri_01hxy2xmmz4xr3y31wpqfnw9v8`);
       addLog(`Current domain: ${window.location.host}`);
       
       try {
-        // Store the checkout options for easier debugging
-        const checkoutOptions = {
-          items: [
-            {
-              priceId: 'pri_01hxy2xmmz4xr3y31wpqfnw9v8', // Pro pack price ID
-              quantity: 1
-            }
-          ],
-          customer: {
-            email: user.email
-          },
-          settings: {
-            displayMode: 'overlay',
-            theme: 'light',
-            locale: 'en'
-          },
-          successCallback: () => {
-            addLog('✅ Checkout completed successfully');
-          },
-          closeCallback: () => {
-            addLog('Checkout closed by user');
-            setIsLoading(false);
-          }
-        };
-        
-        addLog(`Checkout options: ${JSON.stringify(checkoutOptions, null, 2)}`);
-        
         // Add a clearly visible log before opening
         addLog('⚠️ ATTEMPTING TO OPEN CHECKOUT NOW...');
         
-        window.Paddle.Checkout.open(checkoutOptions);
+        // Use the enhanced debug checkout function
+        const result = await openCheckoutDebug('pri_01hxy2xmmz4xr3y31wpqfnw9v8', user.email);
         
-        addLog('✅ Checkout.open() called successfully');
-        addLog('If no checkout is visible, check console for errors');
+        if (result) {
+          addLog('✅ Checkout opened successfully');
+        } else {
+          addLog('❌ Failed to open checkout');
+        }
         
-        // Check if Paddle actually made API calls
+        // Add event listener for the custom purchase success event
+        const handlePurchaseSuccess = (event: any) => {
+          addLog('✅ Purchase completed successfully!');
+          addLog(`Transaction data: ${JSON.stringify(event.detail?.data || {})}`);
+        };
+        
+        window.addEventListener('paddle:purchase:success', handlePurchaseSuccess);
+        
+        // Cleanup the event listener after 5 minutes
         setTimeout(() => {
-          addLog('⚠️ If checkout is not visible by now, it might be a silent failure');
-          addLog('Check browser network tab for API calls to paddle.com');
-          setIsLoading(false);
-        }, 3000);
+          window.removeEventListener('paddle:purchase:success', handlePurchaseSuccess);
+        }, 300000);
+        
       } catch (error: any) {
         addLog(`❌ ERROR OPENING CHECKOUT: ${error?.message || 'Unknown error'}`);
         
@@ -160,8 +144,9 @@ export default function PaddleDebugButton() {
           addLog('1. Price ID might not exist in the Paddle dashboard');
           addLog('2. You might be in test mode but using a live price ID');
           addLog('3. Your domain might not be configured correctly');
+          addLog('4. Paddle API token might be invalid or missing permissions');
         }
-        
+      } finally {
         setIsLoading(false);
       }
     } catch (error) {
@@ -192,6 +177,12 @@ export default function PaddleDebugButton() {
     
     addLog('⚠️ NOTE: Paddle checkout does not work on localhost by default');
     addLog('Consider using ngrok to test with a public domain');
+    
+    // Check domain verification
+    addLog('To make checkout work on localhost during development:');
+    addLog('1. Add "localhost:3001" to your Paddle Dashboard > Checkout settings > Website approval');
+    addLog('2. Set your Default payment link to your development URL (localhost:3001)');
+    addLog('3. Try using an ngrok tunnel (https://ngrok.com) for local development to get a public URL');
   };
 
   return (

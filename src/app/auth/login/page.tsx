@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useState, useEffect, Suspense } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, Lock, AlertCircle, ArrowRight } from 'lucide-react';
@@ -18,18 +18,41 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get('redirect') || '/dashboard';
 
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkSession = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        console.log('[LoginPage] User already logged in, redirecting to:', redirectPath);
+        router.push(redirectPath);
+      }
+    };
+    
+    checkSession();
+  }, [redirectPath, router]);
+
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
+      const supabase = createClient();
+      console.log('[LoginPage] Attempting login for:', email);
+      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('[LoginPage] Login error:', error.message);
+        throw error;
+      }
+      
+      console.log('[LoginPage] Login successful, redirecting to:', redirectPath);
       router.push(redirectPath);
     } catch (err: any) {
       setError(err.message || 'An error occurred during login');

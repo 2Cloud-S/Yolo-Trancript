@@ -248,46 +248,98 @@ export const openCheckoutDebug = async (priceId: string, customerEmail?: string)
         },
       ],
       customer: customerEmail ? { email: customerEmail } : undefined,
-      successUrl: `${window.location.origin}/dashboard?checkout=success`,
+      settings: {
+        displayMode: 'overlay',
+        theme: 'light',
+        locale: 'en',
+      },
+      customData: {
+        source: 'debug_checkout',
+        timestamp: new Date().toISOString()
+      },
+      successCallback: (data: any) => {
+        console.log('[PaddleDebug] Checkout completed successfully:', data);
+        
+        // Restore original fetch
+        window.fetch = originalFetch;
+        
+        // Notify user about successful purchase
+        if (typeof window !== 'undefined') {
+          try {
+            // Display native toast if available
+            const event = new CustomEvent('paddle:purchase:success', { 
+              detail: { data } 
+            });
+            window.dispatchEvent(event);
+          } catch (e) {
+            console.error('[PaddleDebug] Error dispatching success event:', e);
+          }
+        }
+      },
       closeCallback: () => {
-        console.log('[PaddleDebug] Checkout closed via callback');
+        console.log('[PaddleDebug] Checkout closed by user');
+        
         // Restore original fetch
         window.fetch = originalFetch;
       },
+      errorCallback: (error: any) => {
+        console.error('[PaddleDebug] Checkout error:', error);
+        
+        // Restore original fetch
+        window.fetch = originalFetch;
+        
+        // Analyze common errors
+        if (error?.code === 'checkout_not_enabled') {
+          console.error('[PaddleDebug] Checkout not enabled for your Paddle account. Check your account setup.');
+        } else if (error?.message?.includes('domain')) {
+          console.error('[PaddleDebug] Domain error. Current domain:', window.location.host);
+          console.error('[PaddleDebug] Make sure this domain is approved in your Paddle Dashboard.');
+        } else if (error?.code === 'invalid_price_id') {
+          console.error('[PaddleDebug] Invalid price ID. Make sure the price ID exists in your Paddle dashboard.');
+        }
+      }
     };
     
-    console.log(`[PaddleDebug] Checkout options: ${JSON.stringify(checkoutOptions, null, 2)}`);
+    // Log checkout options for debugging
+    console.log('[PaddleDebug] Checkout options:', JSON.stringify(checkoutOptions, null, 2));
     
-    // Open checkout with error handling
+    // Create and open the checkout
+    console.log('[PaddleDebug] Calling Paddle.Checkout.open()...');
+    
     try {
-      const checkout = await paddle.Checkout.open(checkoutOptions);
-      console.log("[PaddleDebug] Checkout opened successfully");
-      return checkout;
-    } catch (checkoutError: any) {
+      paddle.Checkout.open(checkoutOptions);
+      console.log('[PaddleDebug] Paddle.Checkout.open() called successfully');
+      
+      // Check if checkout is actually visible
+      setTimeout(() => {
+        const checkoutIframe = document.querySelector('iframe[src*="paddle.com"]');
+        if (checkoutIframe) {
+          console.log('[PaddleDebug] Checkout iframe found in DOM');
+        } else {
+          console.warn('[PaddleDebug] No checkout iframe found in DOM after 1 second');
+          console.warn('[PaddleDebug] This may indicate a silent failure or domain configuration issue');
+        }
+      }, 1000);
+      
+      return true;
+    } catch (checkoutError) {
       console.error('[PaddleDebug] Error opening checkout:', checkoutError);
       
-      // Special handling for common checkout errors
-      if (checkoutError.message?.includes('checkout_not_enabled')) {
-        console.error('[PaddleDebug] CRITICAL: Checkout not enabled for your Paddle account');
-        console.error('[PaddleDebug] The onboarding process may not be complete. Contact Paddle support.');
-      } else if (checkoutError.message?.includes('domain')) {
-        console.error('[PaddleDebug] CRITICAL: Domain not approved in Paddle');
-        console.error(`[PaddleDebug] Current domain: ${window.location.host}`);
-        console.error('[PaddleDebug] Add this domain in your Paddle dashboard under Developer Tools > Domains');
-      } else if (checkoutError.message?.includes('price')) {
-        console.error('[PaddleDebug] Invalid price ID:', priceId);
-        console.error('[PaddleDebug] Verify this price exists in your Paddle dashboard');
-      }
+      // Restore original fetch
+      window.fetch = originalFetch;
       
       throw checkoutError;
     }
   } catch (error) {
-    console.error('[PaddleDebug] Critical error opening checkout:', error);
-    throw error;
+    console.error('[PaddleDebug] Critical error during checkout open:', error);
+    return false;
   }
 };
 
+/**
+ * Exports for external use
+ */
 export default {
-  initPaddle,
-  openCheckoutDebug,
+  init: initPaddle,
+  openCheckout: openCheckoutDebug
 }; 
