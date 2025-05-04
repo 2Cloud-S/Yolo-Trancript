@@ -127,7 +127,7 @@ export default function PaddleDebugPage() {
       };
       
       // Pro pack price ID
-      const priceId = 'pri_01hxy2xmmz4xr3y31wpqfnw9v8';
+      const priceId = 'pri_01jtdj3q5xd7v2gvj87yfz57ym';
       log(`Using price ID: ${priceId}`);
       
       // First try using the standard client

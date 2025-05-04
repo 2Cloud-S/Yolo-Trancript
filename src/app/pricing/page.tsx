@@ -13,10 +13,10 @@ const CreditPurchaseButton = dynamic(
 
 // Paddle price IDs for each credit pack
 const PRICE_IDS = {
-  'Starter': 'pri_01hxy2x8zwcgr82a3ekjfcj9vr',
-  'Pro': 'pri_01hxy2xmmz4xr3y31wpqfnw9v8',
-  'Creator': 'pri_01hxy2y1m9mpk0mqr7nv11xtcr',
-  'Power': 'pri_01hxy2yfxrn11n1rvjwx2ej1x3',
+  'Starter': 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
+  'Pro': 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
+  'Creator': 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
+  'Power': 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
 };
 
 export default function PricingPage() {

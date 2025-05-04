@@ -99,7 +99,7 @@ export default function PaddleDebugButton() {
       
       // Use the enhanced debug checkout function
       addLog('Opening checkout using debug checkout function...');
-      addLog(`PriceID being used: pri_01hxy2xmmz4xr3y31wpqfnw9v8`);
+      addLog(`PriceID being used: pri_01jtdj3q5xd7v2gvj87yfz57ym`);
       addLog(`Current domain: ${window.location.host}`);
       
       try {
@@ -107,7 +107,7 @@ export default function PaddleDebugButton() {
         addLog('⚠️ ATTEMPTING TO OPEN CHECKOUT NOW...');
         
         // Use the enhanced debug checkout function
-        const result = await openCheckoutDebug('pri_01hxy2xmmz4xr3y31wpqfnw9v8', user.email);
+        const result = await openCheckoutDebug('pri_01jtdj3q5xd7v2gvj87yfz57ym', user.email);
         
         if (result) {
           addLog('✅ Checkout opened successfully');

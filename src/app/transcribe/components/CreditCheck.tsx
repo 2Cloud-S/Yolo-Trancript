@@ -125,7 +125,7 @@ export default function CreditCheck({ durationInSeconds, onConfirm, onCancel }: 
               View All Plans
             </Link>
             <CreditPurchaseButton
-              priceId="pri_01hxy2xmmz4xr3y31wpqfnw9v8" // Pro pack (100 credits)
+              priceId="pri_01jtdj3q5xd7v2gvj87yfz57ym" // Pro pack (100 credits)
               packageName="Pro"
               className="block w-full px-4 py-2 bg-gray-900 text-center text-white rounded-md hover:bg-gray-800"
             >

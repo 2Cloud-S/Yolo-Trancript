@@ -166,7 +166,7 @@ export function CreditStatusCard() {
           {status === 'low' && (
             <div className="mt-4">
               <CreditPurchaseButton
-                priceId="pri_01hxy2xmmz4xr3y31wpqfnw9v8" // Pro pack (100 credits)
+                priceId="pri_01jtdj3q5xd7v2gvj87yfz57ym" // Pro pack (100 credits)
                 packageName="Pro"
                 className="w-full px-3 py-1.5 text-xs bg-gray-900 text-white rounded-md hover:bg-gray-800"
               >

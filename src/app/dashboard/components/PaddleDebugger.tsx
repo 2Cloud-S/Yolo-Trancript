@@ -6,7 +6,7 @@ import { initPaddle, openCheckout } from '@/lib/paddle/client';
 export default function PaddleDebugger() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [log, setLog] = useState<string[]>([]);
-  const [priceId, setPriceId] = useState('pri_01hgw2z4k8c1gj81qmzxr4r4vz'); // Default price ID
+  const [priceId, setPriceId] = useState('pri_01jtdj3q5xd7v2gvj87yfz57ym'); // Default price ID
   const [paddleLoaded, setPaddleLoaded] = useState(false);
 
   useEffect(() => {
