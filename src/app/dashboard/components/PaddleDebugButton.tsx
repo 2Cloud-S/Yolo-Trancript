@@ -82,11 +82,13 @@ export default function PaddleDebugButton() {
   const testCheckout = async () => {
     if (!user?.email) {
       addLog('❌ Cannot test checkout: No authenticated user');
+      addLog('Please log in first, then try again!');
       return;
     }
     
     try {
       addLog('Testing checkout flow...');
+      addLog(`Authentication status: ${user ? '✅ Authenticated as ' + user.email : '❌ Not authenticated'}`);
       setIsLoading(true);
       
       // Check if Paddle is loaded
@@ -97,9 +99,12 @@ export default function PaddleDebugButton() {
       
       // Try direct API approach
       addLog('Opening checkout using direct Paddle API...');
+      addLog(`PriceID being used: pri_01hxy2xmmz4xr3y31wpqfnw9v8`);
+      addLog(`Current domain: ${window.location.host}`);
       
       try {
-        window.Paddle.Checkout.open({
+        // Store the checkout options for easier debugging
+        const checkoutOptions = {
           items: [
             {
               priceId: 'pri_01hxy2xmmz4xr3y31wpqfnw9v8', // Pro pack price ID
@@ -121,11 +126,26 @@ export default function PaddleDebugButton() {
             addLog('Checkout closed by user');
             setIsLoading(false);
           }
-        });
+        };
         
-        addLog('Checkout API call completed - checkout should be visible now');
+        addLog(`Checkout options: ${JSON.stringify(checkoutOptions, null, 2)}`);
+        
+        // Add a clearly visible log before opening
+        addLog('⚠️ ATTEMPTING TO OPEN CHECKOUT NOW...');
+        
+        window.Paddle.Checkout.open(checkoutOptions);
+        
+        addLog('✅ Checkout.open() called successfully');
+        addLog('If no checkout is visible, check console for errors');
+        
+        // Check if Paddle actually made API calls
+        setTimeout(() => {
+          addLog('⚠️ If checkout is not visible by now, it might be a silent failure');
+          addLog('Check browser network tab for API calls to paddle.com');
+          setIsLoading(false);
+        }, 3000);
       } catch (error: any) {
-        addLog(`❌ Error opening checkout: ${error?.message || 'Unknown error'}`);
+        addLog(`❌ ERROR OPENING CHECKOUT: ${error?.message || 'Unknown error'}`);
         
         if (error?.message?.includes('checkout_not_enabled')) {
           addLog('⚠️ CRITICAL: Checkout not enabled for your Paddle account');
@@ -133,6 +153,13 @@ export default function PaddleDebugButton() {
         } else if (error?.message?.includes('domain')) {
           addLog('⚠️ CRITICAL: Domain not approved in Paddle');
           addLog(`Current domain: ${window.location.host}`);
+          addLog('Check your Paddle Dashboard > Checkout settings > Default payment link');
+        } else {
+          // Other potential issues
+          addLog('Possible issues:');
+          addLog('1. Price ID might not exist in the Paddle dashboard');
+          addLog('2. You might be in test mode but using a live price ID');
+          addLog('3. Your domain might not be configured correctly');
         }
         
         setIsLoading(false);

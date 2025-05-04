@@ -1,152 +1,136 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { initPaddle } from '@/lib/paddle/client-debug';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Database } from '@/types/supabase';
+import { initPaddle, openCheckout } from '@/lib/paddle/client';
+import Link from 'next/link';
 
 export default function TestPaddlePage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   
+  // Add a log with timestamp
   const log = (message: string) => {
-    console.log(message);
+    console.log(`[TestPaddle] ${message}`);
     setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
   };
   
+  // Initialize on load
   useEffect(() => {
-    log('Page loaded - fetching user...');
-    
-    // Initialize Paddle
-    initPaddle().then(paddle => {
-      if (paddle) {
-        log('Paddle initialized on page load');
-      } else {
-        log('Failed to initialize Paddle on page load');
-      }
-    });
-    
-    // Fetch user
-    const fetchUser = async () => {
-      const supabase = createClientComponentClient<Database>();
-      const { data, error } = await supabase.auth.getUser();
-      
-      if (error) {
-        log(`Auth error: ${error.message}`);
-        return;
-      }
-      
-      if (data.user) {
-        log(`User authenticated: ${data.user.email}`);
-        setUser(data.user);
-      } else {
-        log('No user authenticated');
+    const init = async () => {
+      try {
+        log('Page loaded, initializing Paddle...');
+        const paddleResult = await initPaddle();
+        
+        if (paddleResult) {
+          log('✅ Paddle initialized successfully');
+        } else {
+          log('❌ Paddle initialization failed');
+        }
+        
+        // Check user authentication
+        log('Checking user authentication...');
+        const supabase = createClientComponentClient<Database>();
+        const { data, error } = await supabase.auth.getUser();
+        
+        if (error) {
+          log(`❌ Error fetching user: ${error.message}`);
+          return;
+        }
+        
+        if (data?.user) {
+          log(`✅ User authenticated as: ${data.user.email}`);
+          setUser(data.user);
+        } else {
+          log('❌ No authenticated user found');
+        }
+      } catch (error: any) {
+        log(`❌ Error during initialization: ${error?.message || 'Unknown error'}`);
       }
     };
     
-    fetchUser();
+    init();
   }, []);
   
+  // Handle checkout
   const handleCheckout = async () => {
-    if (!user?.email) {
-      log('No authenticated user! Please log in first.');
-      return;
-    }
-    
     try {
       setIsLoading(true);
-      log('Initializing Paddle...');
+      log('Starting checkout process...');
       
-      const paddle = await initPaddle();
-      if (!paddle) {
-        throw new Error('Failed to initialize Paddle');
+      // First verify user is authenticated
+      if (!user) {
+        log('❌ Cannot checkout: User not authenticated');
+        return;
       }
       
-      log('Opening checkout...');
+      log(`Attempting to open checkout for user: ${user.email}`);
       
-      // Use native Paddle API directly
-      try {
-        window.Paddle.Checkout.open({
-          items: [{
-            priceId: 'pri_01hxy2xmmz4xr3y31wpqfnw9v8', // Pro pack (100 credits)
-            quantity: 1
-          }],
-          customer: {
-            email: user.email
-          },
-          settings: {
-            displayMode: 'overlay',
-            theme: 'light',
-            locale: 'en'
-          },
-          successCallback: () => {
-            log('Checkout completed successfully');
-            setIsLoading(false);
-          },
-          closeCallback: () => {
-            log('Checkout closed by user');
-            setIsLoading(false);
-          }
-        });
-        
-        log('Checkout opened successfully');
-      } catch (paddleError: any) {
-        log(`Paddle checkout error: ${paddleError?.message || 'Unknown error'}`);
-        
-        if (paddleError?.message?.includes('domain')) {
-          log('ERROR: Domain not approved in Paddle');
-        }
-        if (paddleError?.message?.includes('checkout_not_enabled')) {
-          log('ERROR: Checkout not enabled for this account');
-        }
-        
-        setIsLoading(false);
-      }
+      // Using priceId for Pro pack (100 credits)
+      const priceId = 'pri_01hxy2xmmz4xr3y31wpqfnw9v8';
+      
+      // Call openCheckout with the proper arguments
+      const result = await openCheckout(priceId, user.email);
+      
+      log(`Checkout open result: ${result ? 'Success' : 'Failed'}`);
     } catch (error: any) {
-      log(`Error: ${error?.message || 'Unknown error'}`);
+      log(`❌ Error during checkout: ${error?.message || 'Unknown error'}`);
       setIsLoading(false);
     }
   };
   
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-8 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">Paddle Checkout Test Page</h1>
       
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+      <div className="bg-blue-50 p-4 rounded-md mb-6 border border-blue-200">
+        <p className="mb-2">
+          <span className="font-semibold">Need more detailed debugging?</span>
+        </p>
+        <Link 
+          href="/test-paddle/debug" 
+          className="text-blue-600 underline hover:text-blue-800"
+        >
+          Go to Enhanced Debug Page →
+        </Link>
+      </div>
+      
+      <div className="bg-white p-6 rounded-md shadow-md mb-6">
         <h2 className="text-lg font-semibold mb-4">User Status</h2>
+        
         {user ? (
-          <div className="p-4 bg-green-50 rounded-md border border-green-200 text-green-800">
-            <p>Logged in as: {user.email}</p>
+          <div className="p-4 bg-green-50 rounded-md border border-green-200">
+            <p className="text-green-800 font-medium">✅ Authenticated</p>
+            <p className="text-sm">Email: {user.email}</p>
           </div>
         ) : (
-          <div className="p-4 bg-yellow-50 rounded-md border border-yellow-200 text-yellow-800">
-            <p>Not logged in. Please <a href="/auth/login" className="underline">log in</a> to test checkout.</p>
+          <div className="p-4 bg-red-50 rounded-md border border-red-200">
+            <p className="text-red-800 font-medium">❌ Not authenticated</p>
+            <p className="text-sm">Please <a href="/auth/login" className="text-blue-600 underline">log in</a> to test checkout</p>
           </div>
         )}
       </div>
       
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-4">Test Checkout</h2>
-        <button
-          onClick={handleCheckout}
-          disabled={isLoading || !user}
-          className="px-6 py-3 bg-blue-600 text-white rounded-md disabled:opacity-50"
-        >
-          {isLoading ? 'Opening Checkout...' : 'Open Paddle Checkout'}
-        </button>
-      </div>
+      <button 
+        onClick={handleCheckout}
+        disabled={!user || isLoading}
+        className="bg-green-600 px-6 py-3 rounded-md text-white font-medium disabled:opacity-50 mb-6"
+      >
+        {isLoading ? 'Processing...' : 'Test Checkout'}
+      </button>
       
-      <div className="bg-gray-900 rounded-lg p-4">
+      <div className="bg-gray-900 p-6 rounded-md">
         <h2 className="text-lg font-semibold text-white mb-4">Logs</h2>
-        <div className="bg-black text-green-400 p-4 rounded-md font-mono text-sm h-64 overflow-y-auto">
+        <pre className="bg-black text-green-400 p-4 rounded-md font-mono text-sm h-64 overflow-y-auto">
           {logs.map((log, index) => (
             <div key={index} className="pb-1">
               {log}
             </div>
           ))}
           {logs.length === 0 && <div className="text-gray-500">No logs yet</div>}
-        </div>
+        </pre>
       </div>
     </div>
   );
