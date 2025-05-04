@@ -3,6 +3,21 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle, Info } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+// Dynamically import the CreditPurchaseButton component
+const CreditPurchaseButton = dynamic(
+  () => import('@/components/CreditPurchaseButton'),
+  { ssr: false }
+);
+
+// Paddle price IDs for each credit pack
+const PRICE_IDS = {
+  'Starter': 'pri_01hxy2x8zwcgr82a3ekjfcj9vr',
+  'Pro': 'pri_01hxy2xmmz4xr3y31wpqfnw9v8',
+  'Creator': 'pri_01hxy2y1m9mpk0mqr7nv11xtcr',
+  'Power': 'pri_01hxy2yfxrn11n1rvjwx2ej1x3',
+};
 
 export default function PricingPage() {
   const [showPricingInfo, setShowPricingInfo] = useState(false);
@@ -144,14 +159,15 @@ export default function PricingPage() {
                     <p className="mt-2 text-sm text-gray-600">
                       {plan.hours} hours of transcription
                     </p>
-                    <Link
-                      href="/auth/register"
+                    <CreditPurchaseButton
+                      priceId={PRICE_IDS[plan.name as keyof typeof PRICE_IDS]}
+                      packageName={plan.name}
                       className={`mt-8 block w-full border-2 border-gray-900 rounded-md py-2 text-sm font-bold text-center ${
                         plan.popular ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-white text-gray-900 hover:bg-gray-50'
                       }`}
                     >
                       Get started
-                    </Link>
+                    </CreditPurchaseButton>
                   </div>
                   <div className="pt-6 pb-8 px-6 bg-gray-50 rounded-b-lg border-t border-gray-200">
                     <h4 className="text-sm font-bold text-gray-900 tracking-wide uppercase">What's included</h4>
