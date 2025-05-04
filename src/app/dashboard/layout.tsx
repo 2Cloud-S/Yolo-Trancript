@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 import Sidebar from '@/components/ui/Sidebar';
 import { LogOut } from 'lucide-react';
 
@@ -12,15 +12,34 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
 
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut();
-      router.push('/auth/login');
+      // Prevent multiple clicks
+      if (isSigningOut) return;
+      
+      setIsSigningOut(true);
+      console.log('Signing out user...');
+      
+      // Use the signOut method and wait for it to complete
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('Error signing out:', error.message);
+        setIsSigningOut(false);
+        return;
+      }
+      
+      console.log('Sign out successful, auth state change event should handle redirect');
+      
+      // The redirect will be handled by the AuthProvider's onAuthStateChange listener
+      // We don't manually redirect here to avoid race conditions
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('Unexpected error during sign out:', error);
+      setIsSigningOut(false);
     }
   };
 
@@ -52,10 +71,11 @@ export default function DashboardLayout({
               <div className="flex items-center">
                 <button
                   onClick={handleSignOut}
-                  className="ml-3 inline-flex items-center px-4 py-2 border-2 border-gray-900 text-sm font-bold rounded-md text-gray-900 bg-white hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors duration-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                  disabled={isSigningOut}
+                  className="ml-3 inline-flex items-center px-4 py-2 border-2 border-gray-900 text-sm font-bold rounded-md text-gray-900 bg-white hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors duration-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <LogOut className="h-4 w-4 mr-2" />
-                  Sign Out
+                  {isSigningOut ? 'Signing Out...' : 'Sign Out'}
                 </button>
               </div>
             </div>

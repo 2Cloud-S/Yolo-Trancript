@@ -13,10 +13,10 @@ const CreditPurchaseButton = dynamic(
 
 // Paddle price IDs for each credit pack
 const PRICE_IDS = {
-  'Starter': 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
-  'Pro': 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
-  'Creator': 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
-  'Power': 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
+  'Starter': process.env.NEXT_PUBLIC_DEFAULT_PRICE_ID || 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
+  'Pro': process.env.NEXT_PUBLIC_DEFAULT_PRICE_ID || 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
+  'Creator': process.env.NEXT_PUBLIC_DEFAULT_PRICE_ID || 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
+  'Power': process.env.NEXT_PUBLIC_DEFAULT_PRICE_ID || 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
 };
 
 export default function PricingPage() {
@@ -165,9 +165,8 @@ export default function PricingPage() {
                       className={`mt-8 block w-full border-2 border-gray-900 rounded-md py-2 text-sm font-bold text-center ${
                         plan.popular ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-white text-gray-900 hover:bg-gray-50'
                       }`}
-                    >
-                      Get started
-                    </CreditPurchaseButton>
+                      text="Get started"
+                    />
                   </div>
                   <div className="pt-6 pb-8 px-6 bg-gray-50 rounded-b-lg border-t border-gray-200">
                     <h4 className="text-sm font-bold text-gray-900 tracking-wide uppercase">What's included</h4>

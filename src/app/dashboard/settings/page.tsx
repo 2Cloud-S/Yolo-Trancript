@@ -1,8 +1,6 @@
 import { redirect } from 'next/navigation';
 import { Database } from '@/types/supabase';
-import { CreditCard } from 'lucide-react';
 import { UserProfile } from './components/UserProfile';
-import { CreditHistoryTable } from './components/CreditHistoryTable';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +24,7 @@ export default async function SettingsPage() {
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
         <p className="text-muted-foreground">
-          Manage your account settings and credits
+          Manage your account settings
         </p>
       </div>
       
@@ -36,17 +34,6 @@ export default async function SettingsPage() {
           <h3 className="text-xl font-semibold mb-4">Profile</h3>
           <div className="bg-white rounded-lg border shadow-sm p-6">
             <UserProfile user={user} />
-          </div>
-        </div>
-        
-        {/* Credit History Section */}
-        <div>
-          <div className="flex items-center mb-4">
-            <CreditCard className="mr-2 h-5 w-5" />
-            <h3 className="text-xl font-semibold">Credit History</h3>
-          </div>
-          <div className="bg-white rounded-lg border shadow-sm p-6">
-            <CreditHistoryTable />
           </div>
         </div>
       </div>

@@ -125,12 +125,11 @@ export default function CreditCheck({ durationInSeconds, onConfirm, onCancel }: 
               View All Plans
             </Link>
             <CreditPurchaseButton
-              priceId="pri_01jtdj3q5xd7v2gvj87yfz57ym" // Pro pack (100 credits)
+              priceId={process.env.NEXT_PUBLIC_DEFAULT_PRICE_ID || "pri_01jtdj3q5xd7v2gvj87yfz57ym"} // Pro pack (100 credits)
               packageName="Pro"
               className="block w-full px-4 py-2 bg-gray-900 text-center text-white rounded-md hover:bg-gray-800"
-            >
-              Buy 100 Credits Now
-            </CreditPurchaseButton>
+              text="Buy 100 Credits Now"
+            />
             <button
               onClick={onCancel}
               className="block w-full px-4 py-2 bg-gray-200 text-center text-gray-800 rounded-md hover:bg-gray-300"
