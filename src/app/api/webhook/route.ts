@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPaddleClient } from '@/lib/paddle/api-client';
+import { createClient } from '@/lib/supabase/server';
 import crypto from 'crypto';
 
 interface PaddleCustomer {
@@ -412,16 +413,56 @@ export async function POST(req: NextRequest) {
         console.error('❌ Could not find customer email in webhook data');
         return NextResponse.json({ error: 'Missing customer email' }, { status: 400 });
       }
-      
-      // Process the transaction
-      console.log('✅ Processing transaction for customer:', customerEmail);
-      
-      // TODO: Add your transaction processing logic here
+
+      // Get package name and credits from transaction data
+      const packageName = transactionData.items?.[0]?.price?.name || 'Unknown Package';
+      const creditsToAdd = CREDIT_PACKAGES[packageName.toLowerCase()] || 0;
+
+      if (creditsToAdd === 0) {
+        console.error('❌ Could not determine credits to add for package:', packageName);
+        return NextResponse.json({ error: 'Invalid package' }, { status: 400 });
+      }
+
+      // Initialize Supabase client
+      const supabase = await createClient();
+
+      // Get user ID from email
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', customerEmail)
+        .single();
+
+      if (userError || !userData) {
+        console.error('❌ Error finding user:', userError);
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
+
+      const userId = userData.id;
+
+      // Start a transaction to update both tables
+      const { error: transactionError } = await supabase.rpc('process_credit_purchase', {
+        p_user_id: userId,
+        p_paddle_transaction_id: transactionData.id,
+        p_amount: transactionData.total,
+        p_currency: transactionData.currency,
+        p_credits_to_add: creditsToAdd,
+        p_package_name: packageName,
+        p_metadata: transactionData
+      });
+
+      if (transactionError) {
+        console.error('❌ Error processing credit purchase:', transactionError);
+        return NextResponse.json({ error: 'Failed to process purchase' }, { status: 500 });
+      }
+
+      console.log('✅ Successfully processed credit purchase for user:', userId);
       
       return NextResponse.json({ 
         success: true, 
         message: 'Transaction processed successfully',
-        customerEmail
+        customerEmail,
+        creditsAdded: creditsToAdd
       });
     }
     
