@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { Database } from '@/types/supabase';
 import { hasEfficientCredits, logCreditUsage } from '@/lib/supabase/admin-client';
+import { createServiceRoleClient } from '@/lib/supabase/server';
 
 // Calculate credits needed based on audio duration (in seconds)
 function calculateCreditsNeeded(durationInSeconds: number): number {
@@ -113,34 +114,42 @@ export async function POST(req: NextRequest) {
     
     // Get transaction history
     if (action === 'history') {
-      // Fetch credit transactions
-      const { data: transactions, error: txError } = await supabase
-        .from('credit_transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      try {
+        // Use service role client for elevated permissions
+        const serviceClient = createServiceRoleClient();
         
-      if (txError) {
-        console.error('Error fetching transactions:', txError);
-        return NextResponse.json({ error: 'Failed to fetch transactions' }, { status: 500 });
-      }
-      
-      // Fetch credit usage
-      const { data: usage, error: usageError } = await supabase
-        .from('credit_usage')
-        .select('*, transcriptions(file_name)')
-        .eq('user_id', user.id)
-        .order('used_at', { ascending: false });
+        // Fetch credit transactions
+        const { data: transactions, error: txError } = await serviceClient
+          .from('credit_transactions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+          
+        if (txError) {
+          console.error('Error fetching transactions:', txError);
+          return NextResponse.json({ error: 'Failed to fetch transactions' }, { status: 500 });
+        }
         
-      if (usageError) {
-        console.error('Error fetching usage:', usageError);
-        return NextResponse.json({ error: 'Failed to fetch usage history' }, { status: 500 });
+        // Fetch credit usage
+        const { data: usage, error: usageError } = await serviceClient
+          .from('credit_usage')
+          .select('*, transcriptions(file_name)')
+          .eq('user_id', user.id)
+          .order('used_at', { ascending: false });
+          
+        if (usageError) {
+          console.error('Error fetching usage:', usageError);
+          return NextResponse.json({ error: 'Failed to fetch usage history' }, { status: 500 });
+        }
+        
+        return NextResponse.json({
+          transactions,
+          usage
+        });
+      } catch (error) {
+        console.error('Error in credit history retrieval:', error);
+        return NextResponse.json({ error: 'Failed to fetch credit history' }, { status: 500 });
       }
-      
-      return NextResponse.json({
-        transactions,
-        usage
-      });
     }
     
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

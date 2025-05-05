@@ -426,7 +426,8 @@ export async function POST(req: NextRequest) {
       // Initialize Supabase client with service role
       const supabase = createServiceRoleClient();
 
-      // Get user ID from email
+      // Get user ID from email - when using service role client, we use 'users' table directly
+      // as the service role client handles schema resolution correctly
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('id')
@@ -434,7 +435,7 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (userError || !userData) {
-        console.error('❌ Error finding user:', userError);
+        console.error('❌ Error finding user:', userError, 'for email:', customerEmail);
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
 
