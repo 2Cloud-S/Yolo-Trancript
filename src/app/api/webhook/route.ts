@@ -2,6 +2,122 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin-client';
 import crypto from 'crypto';
 
+// Helper function to fetch customer details from Paddle API
+async function fetchCustomerFromPaddle(customerId: string): Promise<{ email: string | null }> {
+  try {
+    // Get Paddle API credentials from environment variables
+    const apiKey = process.env.PADDLE_API_KEY || '';
+    if (!apiKey) {
+      console.error('❌ No Paddle API key found in environment variables');
+      return { email: null };
+    }
+    
+    // Paddle API base URL depends on environment
+    const isProdEnv = process.env.NODE_ENV === 'production';
+    const baseUrl = isProdEnv 
+      ? 'https://api.paddle.com' 
+      : 'https://sandbox-api.paddle.com';
+    
+    // Make API request to get customer details
+    console.log(`🔍 Fetching customer details from Paddle API for ID: ${customerId}`);
+    const response = await fetch(`${baseUrl}/customers/${customerId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Error fetching customer from Paddle API: ${response.status} ${errorText}`);
+      return { email: null };
+    }
+    
+    const data = await response.json();
+    console.log('✅ Customer data retrieved successfully from Paddle API');
+    
+    // Extract email from response
+    const email = data?.data?.email || null;
+    if (email) {
+      console.log(`✅ Found customer email from Paddle API: ${email}`);
+    } else {
+      console.error('❌ No email found in Paddle API response');
+    }
+    
+    return { email };
+  } catch (error) {
+    console.error('❌ Error calling Paddle API:', error);
+    return { email: null };
+  }
+}
+
+// Helper function to fetch transaction details from Paddle API
+async function fetchTransactionFromPaddle(transactionId: string): Promise<{ customer_email: string | null }> {
+  try {
+    // Get Paddle API credentials from environment variables
+    const apiKey = process.env.PADDLE_API_KEY || '';
+    if (!apiKey) {
+      console.error('❌ No Paddle API key found in environment variables');
+      return { customer_email: null };
+    }
+    
+    // Paddle API base URL depends on environment
+    const isProdEnv = process.env.NODE_ENV === 'production';
+    const baseUrl = isProdEnv 
+      ? 'https://api.paddle.com' 
+      : 'https://sandbox-api.paddle.com';
+    
+    // Make API request to get transaction details
+    console.log(`🔍 Fetching transaction details from Paddle API for ID: ${transactionId}`);
+    const response = await fetch(`${baseUrl}/transactions/${transactionId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Error fetching transaction from Paddle API: ${response.status} ${errorText}`);
+      return { customer_email: null };
+    }
+    
+    const data = await response.json();
+    console.log('✅ Transaction data retrieved successfully from Paddle API');
+    
+    // Try to get customer info from the transaction
+    let customerEmail = null;
+    
+    // Extract customer ID first
+    const customerId = data?.data?.customer_id;
+    if (customerId) {
+      // If we have a customer ID, try to get customer details
+      console.log(`🔍 Found customer_id in transaction data: ${customerId}`);
+      const { email } = await fetchCustomerFromPaddle(customerId);
+      customerEmail = email;
+    }
+    
+    // Try to find email in the billing details or custom data
+    if (!customerEmail) {
+      const billingDetails = data?.data?.billing_details;
+      if (billingDetails && billingDetails.email) {
+        customerEmail = billingDetails.email;
+        console.log(`✅ Found email in transaction billing details: ${customerEmail}`);
+      } else if (data?.data?.custom_data && data.data.custom_data.user_email) {
+        customerEmail = data.data.custom_data.user_email;
+        console.log(`✅ Found email in transaction custom data: ${customerEmail}`);
+      }
+    }
+    
+    return { customer_email: customerEmail };
+  } catch (error) {
+    console.error('❌ Error calling Paddle API for transaction:', error);
+    return { customer_email: null };
+  }
+}
+
 // Credit mapping for each package
 // Add normalized versions of package names for better matching
 const CREDIT_PACKAGES: Record<string, number> = {
@@ -107,11 +223,70 @@ class PaddleWebhookVerifier {
   }
 }
 
+// Helper function to analyze webhook payload structure
+function analyzeWebhookStructure(payload: any): void {
+  try {
+    console.log('🔍 Analyzing webhook payload structure');
+    
+    // Check for customer_id
+    if (payload.customer_id) {
+      console.log('✅ Found customer_id:', payload.customer_id);
+    }
+    
+    // Check for items structure
+    if (Array.isArray(payload.items)) {
+      console.log('✅ Found items array with', payload.items.length, 'items');
+      
+      // Analyze first item
+      if (payload.items[0]) {
+        const firstItem = payload.items[0];
+        console.log('🔍 First item structure keys:', Object.keys(firstItem).join(', '));
+        
+        // Check for price structure
+        if (firstItem.price) {
+          console.log('✅ Found price object in first item with keys:', Object.keys(firstItem.price).join(', '));
+          
+          // Check for product name
+          if (firstItem.price.name) {
+            console.log('✅ Found price.name:', firstItem.price.name);
+          }
+        }
+      }
+    }
+    
+    // Check for checkout data
+    if (payload.checkout) {
+      console.log('✅ Found checkout data with keys:', Object.keys(payload.checkout).join(', '));
+    }
+    
+    // Check for customer data directly
+    if (payload.customer) {
+      console.log('✅ Found customer object with keys:', Object.keys(payload.customer).join(', '));
+    }
+    
+    // Check for payments data
+    if (Array.isArray(payload.payments) && payload.payments.length > 0) {
+      console.log('✅ Found payments array with', payload.payments.length, 'items');
+      console.log('🔍 First payment item keys:', Object.keys(payload.payments[0]).join(', '));
+    }
+    
+    // Check for custom_data
+    if (payload.custom_data) {
+      console.log('✅ Found custom_data with keys:', payload.custom_data ? Object.keys(payload.custom_data).join(', ') : 'null');
+    }
+  } catch (error) {
+    console.error('❌ Error analyzing webhook structure:', error);
+  }
+}
+
 // Process Paddle webhook
 export async function POST(req: NextRequest) {
   console.log('🔍 Webhook received:', new Date().toISOString());
   console.log('🔍 Request headers:', JSON.stringify(Object.fromEntries(req.headers.entries())));
   console.log('🔍 Request URL:', req.url);
+  
+  // Check for API key availability early (without logging the actual key)
+  console.log('🔍 Paddle API key available:', !!process.env.PADDLE_API_KEY);
   
   try {
     // Clone the request to preserve it for potential emergency fallback
@@ -124,6 +299,9 @@ export async function POST(req: NextRequest) {
     // Verify the signature and get the body
     const verifier = new PaddleWebhookVerifier(webhookSecret);
     const { isValid, body } = await verifier.verifySignature(req);
+    
+    // Log signature validation result
+    console.log('🔍 Signature verification result:', isValid ? '✅ Valid' : '❌ Invalid');
     
     // If signature is invalid or test request without signature
     if (!isValid) {
@@ -172,6 +350,9 @@ export async function POST(req: NextRequest) {
       // Extract data from the webhook with more robust parsing
       const transactionData = body.data;
       console.log('🔍 Transaction data:', JSON.stringify(transactionData));
+      
+      // Analyze the webhook structure to help debug
+      analyzeWebhookStructure(transactionData);
       
       if (!transactionData || !transactionData.id) {
         console.error('❌ Missing transaction data', JSON.stringify(body.data));
@@ -311,36 +492,72 @@ export async function POST(req: NextRequest) {
         }
       }
       
+      // Paddle V2 may have customer_id but not email directly in webhook
+      if (!customerEmail && transactionData.customer_id) {
+        console.log('🔍 Found customer_id, attempting to fetch customer details from Paddle API');
+        const { email } = await fetchCustomerFromPaddle(transactionData.customer_id);
+        if (email) {
+          customerEmail = email;
+          console.log('✅ Successfully retrieved customer email via Paddle API:', customerEmail);
+        }
+      }
+      
       if (!customerEmail) {
         // Log the complete transaction data to help debugging
         console.error('❌ Missing customer data in the webhook payload:', JSON.stringify(transactionData, null, 2));
         
-        // Paddle V2 specific emergency fallback
-        // Sometimes checkout data is included in an odd location - try to search for any 'email' string
-        try {
-          const rawDataString = JSON.stringify(transactionData);
-          const emailMatches = rawDataString.match(/"email":\s*"([^"]+)"/);
-          if (emailMatches && emailMatches[1]) {
-            customerEmail = emailMatches[1];
-            console.log('✅ Found email using emergency fallback match:', customerEmail);
+        // Try Paddle API with customer_id if available
+        if (transactionData.customer_id) {
+          console.log('🔍 Attempting to fetch customer details using customer_id:', transactionData.customer_id);
+          
+          try {
+            const { email } = await fetchCustomerFromPaddle(transactionData.customer_id);
+            if (email) {
+              customerEmail = email;
+              console.log('✅ Successfully retrieved customer email via Paddle API:', customerEmail);
+            }
+          } catch (error) {
+            console.error('❌ Error fetching customer data from Paddle API:', error);
           }
-        } catch (error) {
-          console.error('❌ Error during emergency email extraction:', error);
         }
         
-        // Extra fallback for Paddle V2: get transaction details through API
+        // Try fetching transaction details if we have transaction ID
         if (!customerEmail && transactionData.id) {
-          // This would be the place to make a direct API call to Paddle API
-          // to fetch transaction details including customer email
-          console.log('⚠️ Potential fallback: Fetch customer details from Paddle API for transaction ID:', transactionData.id);
+          console.log('🔍 Attempting to fetch transaction details using transaction_id:', transactionData.id);
           
-          // For now, we'll just attempt one more regex approach
           try {
-            // Get the raw request text again to look for email patterns
+            const { customer_email } = await fetchTransactionFromPaddle(transactionData.id);
+            if (customer_email) {
+              customerEmail = customer_email;
+              console.log('✅ Successfully retrieved customer email via Transaction API:', customerEmail);
+            }
+          } catch (error) {
+            console.error('❌ Error fetching transaction data from Paddle API:', error);
+          }
+        }
+        
+        // Paddle V2 specific emergency fallback
+        // Sometimes checkout data is included in an odd location - try to search for any 'email' string
+        if (!customerEmail) {
+          try {
+            const rawDataString = JSON.stringify(transactionData);
+            const emailMatches = rawDataString.match(/"email":\s*"([^"]+)"/);
+            if (emailMatches && emailMatches[1]) {
+              customerEmail = emailMatches[1];
+              console.log('✅ Found email using emergency fallback match:', customerEmail);
+            }
+          } catch (error) {
+            console.error('❌ Error during emergency email extraction:', error);
+          }
+        }
+        
+        // Attempt one more time with a more permissive regex if still no email found
+        if (!customerEmail) {
+          try {
+            // Try to find any email-like pattern in the payload
             const rawString = JSON.stringify(body);
             console.log('🔍 Searching raw webhook body for email pattern');
             
-            // Try to find any email-like pattern in the payload
             const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
             const emailMatch = rawString.match(emailRegex);
             
@@ -353,12 +570,15 @@ export async function POST(req: NextRequest) {
           }
         }
         
-        // Check if we can fallback to a default test user for development
+        // Last resort: Check if this is from a development/test environment
         if (!customerEmail && process.env.NODE_ENV === 'development' && process.env.TEST_USER_EMAIL) {
           console.log('⚠️ Using test user email as fallback in development mode');
           customerEmail = process.env.TEST_USER_EMAIL;
         } else if (!customerEmail) {
-          return NextResponse.json({ error: 'Missing customer data' }, { status: 400 });
+          return NextResponse.json({ 
+            error: 'Missing customer data', 
+            details: 'Could not extract email from webhook payload and no fallback available'
+          }, { status: 400 });
         }
       }
       
