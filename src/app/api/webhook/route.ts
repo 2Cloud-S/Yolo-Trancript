@@ -178,6 +178,13 @@ export async function POST(req: NextRequest) {
       } else if (transactionData.email) {
         customerEmail = transactionData.email;
         console.log('✅ Found email directly in transactionData.email:', customerEmail);
+      } else if (transactionData.custom_data && transactionData.custom_data.user_email) {
+        // Paddle V2 API puts user email in custom_data
+        customerEmail = transactionData.custom_data.user_email;
+        console.log('✅ Found email in transactionData.custom_data.user_email:', customerEmail);
+      } else if (transactionData.custom_data && transactionData.custom_data.email) {
+        customerEmail = transactionData.custom_data.email;
+        console.log('✅ Found email in transactionData.custom_data.email:', customerEmail);
       } else {
         // Check if email exists in custom data if any
         if (transactionData.custom_data && typeof transactionData.custom_data === 'object') {
@@ -294,10 +301,29 @@ export async function POST(req: NextRequest) {
       } else if (firstItem.price && firstItem.price.name) {
         packageName = firstItem.price.name;
         console.log('✅ Found package name in firstItem.price.name:', packageName);
+      } else if (firstItem.price && firstItem.price.description) {
+        // Paddle V2 often uses a description field instead of name
+        const description = firstItem.price.description;
+        // Extract package name from description (e.g., "Starter Package" -> "Starter")
+        const match = description.match(/^(\w+)(\s+Package)?$/i);
+        if (match) {
+          packageName = match[1];
+          console.log('✅ Extracted package name from price.description:', packageName);
+        } else {
+          packageName = description;
+          console.log('✅ Using price.description as package name:', packageName);
+        }
       } else {
         // Try searching for the product/price info in a different structure
-        if (firstItem.price_id && firstItem.price_id.includes('_')) {
+        if (firstItem.price && firstItem.price.id && firstItem.price.id.includes('_')) {
           // Sometimes the price_id contains info like "pri_starter" we can extract
+          const parts = firstItem.price.id.split('_');
+          if (parts.length > 1) {
+            packageName = parts[1].charAt(0).toUpperCase() + parts[1].slice(1); // Capitalize first letter
+            console.log('✅ Extracted package name from price.id:', packageName);
+          }
+        } else if (firstItem.price_id && firstItem.price_id.includes('_')) {
+          // Handle direct price_id field (in some Paddle formats)
           const parts = firstItem.price_id.split('_');
           if (parts.length > 1) {
             packageName = parts[1].charAt(0).toUpperCase() + parts[1].slice(1); // Capitalize first letter
