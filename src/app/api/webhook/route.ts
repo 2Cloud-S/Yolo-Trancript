@@ -203,27 +203,21 @@ export async function POST(req: NextRequest) {
       // Find the user by email
       console.log('🔍 Looking up user by email:', customerEmail);
       
-      // Variable to store the user ID
-      let userId: string;
+      // Get all users and filter by email (until Supabase adds a direct getUserByEmail method)
+      const { data: usersData, error: listError } = await supabase.auth.admin.listUsers();
       
-      // Try to directly query auth.users (needs service role key)
-      const { data: userData, error: userError } = await supabase
-        .from('auth.users')
-        .select('id, email')
-        .eq('email', customerEmail)
-        .maybeSingle();
-      
-      if (userError) {
-        console.error('❌ Error querying user by email:', userError);
+      if (listError) {
+        console.error('❌ Error listing users:', listError);
         return NextResponse.json({ error: 'Database error while looking up user' }, { status: 500 });
       }
       
+      const userData = usersData.users.find(u => u.email === customerEmail);
       if (!userData) {
-        console.error('❌ User not found with email:', customerEmail);
+        console.error('❌ User not found in database:', customerEmail);
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
       
-      userId = userData.id;
+      const userId = userData.id;
       console.log('✅ User found:', userId);
 
       // Get the package name and credits
@@ -253,7 +247,7 @@ export async function POST(req: NextRequest) {
 
       if (creditsToAdd <= 0) {
         console.error('❌ Invalid credit package or package not found:', packageName);
-        console.log('🔍 Available packages:', Object.keys(CREDIT_PACKAGES).join(', '));
+        console.log(' Available packages:', Object.keys(CREDIT_PACKAGES).join(', '));
         
         // Try to match package name partially
         const possibleMatch = Object.keys(CREDIT_PACKAGES).find(
