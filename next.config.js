@@ -5,21 +5,26 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   
-  // Add redirects for webhook handling
-  async redirects() {
+  // Skip trailing slash redirects to prevent 308 redirects
+  skipTrailingSlashRedirect: true,
+  
+  // Define explicit rewrites to handle both webhook URL patterns
+  async rewrites() {
     return [
-      // Ensure webhook requests are handled properly by explicitly defining the route
       {
         source: '/api/webhook',
         destination: '/api/webhook',
-        permanent: true,
-        has: [
-          {
-            type: 'header',
-            key: 'paddle-signature'
-          }
-        ]
       },
+      {
+        source: '/api/webhook/',
+        destination: '/api/webhook',
+      }
+    ];
+  },
+  
+  // Add redirects for webhook handling
+  async redirects() {
+    return [
       // Diagnostic endpoint for webhook testing
       {
         source: '/webhook-test',
