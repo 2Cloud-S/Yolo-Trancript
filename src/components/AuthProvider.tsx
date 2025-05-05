@@ -1,13 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import supabase from '@/lib/supabase/client';
 import { useRouter, usePathname } from 'next/navigation';
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const supabase = createClient();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -56,7 +55,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     };
     
     setupAuth();
-  }, [pathname, router, supabase]);
+  }, [pathname, router]);
 
   // Simple loading state while checking auth
   if (isLoading) {

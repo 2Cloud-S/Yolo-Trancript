@@ -341,7 +341,7 @@ export async function POST(req: NextRequest) {
       console.error('❌ Missing paddle-signature header');
       return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
     }
-    
+
     // Get the raw body
     const rawBody = await req.text();
     
@@ -426,8 +426,7 @@ export async function POST(req: NextRequest) {
       // Initialize Supabase client with service role
       const supabase = createServiceRoleClient();
 
-      // Get user ID from email - when using service role client, we use 'users' table directly
-      // as the service role client handles schema resolution correctly
+      // Get user ID from email
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('id')
@@ -435,7 +434,7 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (userError || !userData) {
-        console.error('❌ Error finding user:', userError, 'for email:', customerEmail);
+        console.error('❌ Error finding user:', userError);
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
 
@@ -464,7 +463,7 @@ export async function POST(req: NextRequest) {
         message: 'Transaction processed successfully',
         customerEmail,
         creditsAdded: creditsToAdd
-      });
+          });
     }
     
     // Return success for other event types

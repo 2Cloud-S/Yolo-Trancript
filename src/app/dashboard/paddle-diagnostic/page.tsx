@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { initPaddle } from '@/lib/paddle/client';
-import { createClient } from '@/lib/supabase/client';
+import supabase from '@/lib/supabase/client';
 import Link from 'next/link';
 
 export default function PaddleDiagnosticPage() {
@@ -28,7 +28,6 @@ export default function PaddleDiagnosticPage() {
         const pricePower = process.env.NEXT_PUBLIC_PADDLE_PRICE_POWER || '';
         
         // Check user authentication
-        const supabase = createClient();
         const { data } = await supabase.auth.getUser();
         const currentUser = data.user;
         setUser(currentUser);

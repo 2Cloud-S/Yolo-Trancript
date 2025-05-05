@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useState, useEffect, Suspense } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import supabase from '@/lib/supabase/client';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, Lock, AlertCircle, ArrowRight } from 'lucide-react';
@@ -22,7 +22,6 @@ function LoginForm() {
   // Check if user is already logged in
   useEffect(() => {
     const checkSession = async () => {
-      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
@@ -40,7 +39,6 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
       console.log('[LoginPage] Attempting login for:', email);
       
       const { error } = await supabase.auth.signInWithPassword({
