@@ -426,9 +426,9 @@ export async function POST(req: NextRequest) {
       // Initialize Supabase client
       const supabase = await createClient();
 
-      // Get user ID from email
+      // Get user ID from email using auth.users
       const { data: userData, error: userError } = await supabase
-        .from('users')
+        .from('auth.users')
         .select('id')
         .eq('email', customerEmail)
         .single();
@@ -444,8 +444,8 @@ export async function POST(req: NextRequest) {
       const { error: transactionError } = await supabase.rpc('process_credit_purchase', {
         p_user_id: userId,
         p_paddle_transaction_id: transactionData.id,
-        p_amount: transactionData.total,
-        p_currency: transactionData.currency,
+        p_amount: transactionData.details.totals.total,
+        p_currency: transactionData.currency_code,
         p_credits_to_add: creditsToAdd,
         p_package_name: packageName,
         p_metadata: transactionData

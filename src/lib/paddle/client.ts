@@ -77,43 +77,43 @@ export const initPaddle = async (): Promise<any | null> => {
   
   // Create a new initialization promise
   initializationPromise = (async () => {
-    try {
-      // Ensure Paddle script is loaded
-      await loadPaddleScript();
-      
-      const environment = process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT || 'sandbox';
-      const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || '';
-      
+  try {
+    // Ensure Paddle script is loaded
+    await loadPaddleScript();
+    
+    const environment = process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT || 'sandbox';
+    const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || '';
+    
       console.log(`Initializing Paddle with environment: ${environment}, token: ${token ? token.substring(0, 5) + '...' : 'missing'}`);
       
       if (!token) {
         console.error('Missing NEXT_PUBLIC_PADDLE_CLIENT_TOKEN environment variable');
         throw new Error('Missing Paddle client token');
       }
-      
-      // Set environment
-      window.Paddle.Environment.set(environment);
-      
-      // Initialize Paddle with client token
-      if (window.Paddle.Initialized) {
-        console.log('Paddle already initialized, updating settings');
-        window.Paddle.Update({
-          token: token,
-        });
-      } else {
-        console.log('Initializing Paddle for the first time');
-        window.Paddle.Initialize({
-          token: token,
-          eventCallback: (event: any) => {
-            console.log('Paddle event:', event.name, event.data);
-          }
-        });
-      }
+    
+    // Set environment
+    window.Paddle.Environment.set(environment);
+    
+    // Initialize Paddle with client token
+    if (window.Paddle.Initialized) {
+      console.log('Paddle already initialized, updating settings');
+      window.Paddle.Update({
+        token: token,
+      });
+    } else {
+      console.log('Initializing Paddle for the first time');
+      window.Paddle.Initialize({
+        token: token,
+        eventCallback: (event: any) => {
+          console.log('Paddle event:', event.name, event.data);
+        }
+      });
+    }
 
-      console.log("Paddle initialization successful");
-      return window.Paddle;
-    } catch (error) {
-      console.error('Failed to initialize Paddle:', error);
+    console.log("Paddle initialization successful");
+    return window.Paddle;
+  } catch (error) {
+    console.error('Failed to initialize Paddle:', error);
       // Clear the promise on error so we can try again
       initializationPromise = null;
       throw error;
@@ -158,22 +158,22 @@ export const openCheckout = async (priceId: string, customerEmail?: string) => {
     
     // Create and open the checkout with better error handling
     try {
-      const checkout = await paddle.Checkout.open({
-        items: [
-          {
-            priceId: priceId,
-            quantity: 1,
-          },
-        ],
-        customer: customerEmail ? { email: customerEmail } : undefined,
-        successUrl: `${window.location.origin}/dashboard?checkout=success`,
-        closeCallback: () => {
-          console.log('Checkout closed via callback');
+    const checkout = await paddle.Checkout.open({
+      items: [
+        {
+          priceId: priceId,
+          quantity: 1,
         },
-      });
+      ],
+      customer: customerEmail ? { email: customerEmail } : undefined,
+      successUrl: `${window.location.origin}/dashboard?checkout=success`,
+      closeCallback: () => {
+        console.log('Checkout closed via callback');
+      },
+    });
 
       console.log("Checkout opened successfully", checkout);
-      return checkout;
+    return checkout;
     } catch (checkoutError: any) {
       console.error('Error in paddle.Checkout.open:', checkoutError);
       // Log more details about the error

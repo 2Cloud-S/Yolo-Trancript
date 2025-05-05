@@ -164,11 +164,11 @@ export default function CreditPurchaseButton({
       if (!isPaddleReady) {
         logInfo('Paddle not ready, initializing...');
         try {
-          const paddle = await initPaddle();
-          if (!paddle) {
-            throw new Error('Failed to initialize Paddle');
-          }
-          setIsPaddleReady(true);
+        const paddle = await initPaddle();
+        if (!paddle) {
+          throw new Error('Failed to initialize Paddle');
+        }
+        setIsPaddleReady(true);
         } catch (initError: any) {
           setError('Failed to initialize payment system. Please try again.');
           setDebugInfo(`Init error: ${initError.message}`);
@@ -181,9 +181,9 @@ export default function CreditPurchaseButton({
       // Use the standard checkout with better error handling
       try {
         const result = await openCheckout(priceId, user.email);
-        
-        if (!result) {
-          setError('Failed to open checkout. Please try again or contact support.');
+      
+      if (!result) {
+        setError('Failed to open checkout. Please try again or contact support.');
           setDebugInfo('openCheckout returned null or undefined');
         }
       } catch (checkoutError: any) {
