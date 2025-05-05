@@ -426,9 +426,9 @@ export async function POST(req: NextRequest) {
       // Initialize Supabase client with service role
       const supabase = createServiceRoleClient();
 
-      // Get user ID from email using auth schema
+      // Get user ID from email
       const { data: userData, error: userError } = await supabase
-        .from('auth.users')
+        .from('users')
         .select('id')
         .eq('email', customerEmail)
         .single();
