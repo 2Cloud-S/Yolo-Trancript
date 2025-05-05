@@ -16,7 +16,8 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get('redirect') || '/dashboard';
+  const returnUrl = searchParams.get('returnUrl');
+  const redirectPath = returnUrl || searchParams.get('redirect') || '/dashboard';
 
   // Check if user is already logged in
   useEffect(() => {
@@ -157,7 +158,7 @@ function LoginForm() {
         <div className="mt-6 flex items-center justify-center">
           <span className="text-sm text-gray-600">Don&apos;t have an account?</span>
           <Link
-            href="/auth/register"
+            href={returnUrl ? `/auth/register?returnUrl=${encodeURIComponent(returnUrl)}` : "/auth/register"}
             className="ml-2 text-sm font-medium text-[#06B6D4] hover:underline"
           >
             Create a free account
@@ -185,6 +186,9 @@ function LoginFormFallback() {
 }
 
 export default function Login() {
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams.get('returnUrl');
+  
   return (
     <div className="flex flex-col min-h-screen">
       <EnvWarning />
@@ -202,7 +206,7 @@ export default function Login() {
             </div>
             <div className="flex items-center space-x-4">
               <Link
-                href="/auth/register"
+                href={returnUrl ? `/auth/register?returnUrl=${encodeURIComponent(returnUrl)}` : "/auth/register"}
                 className="inline-flex items-center px-4 py-2 border-2 border-gray-900 text-sm font-medium rounded-md text-gray-900 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
               >
                 Create Account

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { User as AuthUser } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/client';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Database } from '@/types/supabase';
 import { User, Save, Loader2 } from 'lucide-react';
 
@@ -11,7 +11,7 @@ interface UserProfileProps {
 }
 
 export function UserProfile({ user }: UserProfileProps) {
-  const supabase = createClient();
+  const supabase = createClientComponentClient<Database>();
   const [fullName, setFullName] = useState(user.user_metadata?.full_name || '');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);

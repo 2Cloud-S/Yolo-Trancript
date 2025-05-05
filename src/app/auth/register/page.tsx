@@ -16,7 +16,8 @@ function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get('redirect') || '/dashboard';
+  const returnUrl = searchParams.get('returnUrl');
+  const redirectPath = returnUrl || searchParams.get('redirect') || '/dashboard';
 
   const handleRegister = async (e: FormEvent) => {
     e.preventDefault();
@@ -137,7 +138,7 @@ function RegisterForm() {
         <div className="mt-6 flex items-center justify-center">
           <span className="text-sm text-gray-600">Already have an account?</span>
           <Link
-            href="/auth/login"
+            href={returnUrl ? `/auth/login?returnUrl=${encodeURIComponent(returnUrl)}` : "/auth/login"}
             className="ml-2 text-sm font-medium text-[#06B6D4] hover:underline"
           >
             Sign in
@@ -165,6 +166,9 @@ function RegisterFormFallback() {
 }
 
 export default function Register() {
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams.get('returnUrl');
+  
   return (
     <div className="flex flex-col min-h-screen">
       <EnvWarning />
@@ -182,7 +186,7 @@ export default function Register() {
             </div>
             <div className="flex items-center space-x-4">
               <Link
-                href="/auth/login"
+                href={returnUrl ? `/auth/login?returnUrl=${encodeURIComponent(returnUrl)}` : "/auth/login"}
                 className="inline-flex items-center px-4 py-2 border-2 border-gray-900 text-sm font-medium rounded-md text-gray-900 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
               >
                 Sign In

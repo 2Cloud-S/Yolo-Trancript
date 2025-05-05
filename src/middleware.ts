@@ -10,20 +10,9 @@ export async function middleware(request: NextRequest) {
 
   // Parse the URL to check if it's a protected route
   const url = new URL(request.url);
-  const pathname = url.pathname;
+  const isProtectedRoute = url.pathname.startsWith('/dashboard') || 
+                           url.pathname.startsWith('/transcribe');
   
-  // Define route types 
-  const isProtectedRoute = pathname.startsWith('/dashboard') || 
-                           pathname.startsWith('/transcribe');
-  const isAuthRoute = pathname.startsWith('/auth');
-  const isApiRoute = pathname.startsWith('/api');
-  
-  // Skip auth check for public API routes that don't need authentication
-  if (isApiRoute && !pathname.startsWith('/api/protected')) {
-    return response;
-  }
-  
-  // Create Supabase client
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -73,27 +62,17 @@ export async function middleware(request: NextRequest) {
       // Redirect to login if accessing protected route without authentication
       const redirectUrl = new URL('/auth/login', request.url);
       // Include the original URL as a redirect parameter
-      redirectUrl.searchParams.set('redirect', pathname);
+      redirectUrl.searchParams.set('redirect', url.pathname);
       
-      console.log(`[Middleware] Unauthorized access to ${pathname}, redirecting to login`);
+      console.log(`[Middleware] Unauthorized access attempt to ${url.pathname}, redirecting to login`);
       return NextResponse.redirect(redirectUrl);
     }
     
-    console.log(`[Middleware] Authorized access to ${pathname} for user ${user.email}`);
-  }
-  
-  // Handle auth routes when user is already logged in
-  if (isAuthRoute && session) {
-    // If trying to access login while already authenticated, redirect to dashboard
-    if (pathname === '/auth/login') {
-      console.log(`[Middleware] Already authenticated user attempting to access login, redirecting to dashboard`);
-      return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
+    console.log(`[Middleware] Authorized access to ${url.pathname} for user ${user.email}`);
   }
   
   // Add debug logging for all requests
-  const userEmail = session?.user?.email || 'unauthenticated';
-  console.log(`[Middleware] ${pathname} | User: ${userEmail} | Session: ${!!session}`);
+  console.log(`[Middleware] Processed request for ${url.pathname}, auth session: ${!!session}`);
 
   return response;
 }

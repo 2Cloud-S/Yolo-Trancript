@@ -3,13 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
-
-// Dynamically import the CreditPurchaseButton
-const CreditPurchaseButton = dynamic(
-  () => import('@/components/CreditPurchaseButton'),
-  { ssr: false }
-);
 
 interface CreditCheckProps {
   durationInSeconds: number;
@@ -124,12 +117,12 @@ export default function CreditCheck({ durationInSeconds, onConfirm, onCancel }: 
             >
               View All Plans
             </Link>
-            <CreditPurchaseButton
-              priceId={process.env.NEXT_PUBLIC_DEFAULT_PRICE_ID || "pri_01jtdj3q5xd7v2gvj87yfz57ym"} // Pro pack (100 credits)
-              packageName="Pro"
+            <Link
+              href={`/dashboard/checkout?priceId=${process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO || ''}&packageName=Pro`}
               className="block w-full px-4 py-2 bg-gray-900 text-center text-white rounded-md hover:bg-gray-800"
-              text="Buy 100 Credits Now"
-            />
+            >
+              Buy 100 Credits Now
+            </Link>
             <button
               onClick={onCancel}
               className="block w-full px-4 py-2 bg-gray-200 text-center text-gray-800 rounded-md hover:bg-gray-300"

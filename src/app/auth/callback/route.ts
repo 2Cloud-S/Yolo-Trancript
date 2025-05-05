@@ -4,8 +4,11 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
-  // Get redirect path from search params
-  const redirectPath = requestUrl.searchParams.get('redirect') || '/dashboard';
+  
+  // Get redirect path from search params, checking both returnUrl and redirect
+  const returnUrl = requestUrl.searchParams.get('returnUrl');
+  const redirect = requestUrl.searchParams.get('redirect');
+  const redirectPath = returnUrl || redirect || '/dashboard';
 
   if (code) {
     const supabase = await createClient();

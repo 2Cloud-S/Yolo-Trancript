@@ -1,26 +1,45 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { CheckCircle, Info } from 'lucide-react';
-import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
-// Dynamically import the CreditPurchaseButton component
-const CreditPurchaseButton = dynamic(
-  () => import('@/components/CreditPurchaseButton'),
-  { ssr: false }
-);
-
-// Paddle price IDs for each credit pack
+// Paddle price IDs from environment variables
 const PRICE_IDS = {
-  'Starter': process.env.NEXT_PUBLIC_DEFAULT_PRICE_ID || 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
-  'Pro': process.env.NEXT_PUBLIC_DEFAULT_PRICE_ID || 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
-  'Creator': process.env.NEXT_PUBLIC_DEFAULT_PRICE_ID || 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
-  'Power': process.env.NEXT_PUBLIC_DEFAULT_PRICE_ID || 'pri_01jtdj3q5xd7v2gvj87yfz57ym',
+  'Starter': process.env.NEXT_PUBLIC_PADDLE_PRICE_STARTER || '',
+  'Pro': process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO || '',
+  'Creator': process.env.NEXT_PUBLIC_PADDLE_PRICE_CREATOR || '',
+  'Power': process.env.NEXT_PUBLIC_PADDLE_PRICE_POWER || '',
 };
 
 export default function PricingPage() {
   const [showPricingInfo, setShowPricingInfo] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    async function checkAuth() {
+      const { data: { user } } = await supabase.auth.getUser();
+      setIsAuthenticated(!!user);
+      setCheckingAuth(false);
+    }
+    
+    checkAuth();
+  }, []);
+  
+  const handleGetStarted = (packageName: string, priceId: string) => {
+    if (isAuthenticated) {
+      // User is authenticated, go directly to checkout
+      router.push(`/dashboard/checkout?priceId=${priceId}&packageName=${packageName}`);
+    } else {
+      // User is not authenticated, go to register with returnUrl
+      const returnUrl = encodeURIComponent(`/dashboard/checkout?priceId=${priceId}&packageName=${packageName}`);
+      router.push(`/auth/register?returnUrl=${returnUrl}`);
+    }
+  };
 
   // Define all premium features that will be included in every plan
   const allFeatures = [
@@ -159,14 +178,14 @@ export default function PricingPage() {
                     <p className="mt-2 text-sm text-gray-600">
                       {plan.hours} hours of transcription
                     </p>
-                    <CreditPurchaseButton
-                      priceId={PRICE_IDS[plan.name as keyof typeof PRICE_IDS]}
-                      packageName={plan.name}
+                    <button
+                      onClick={() => handleGetStarted(plan.name, PRICE_IDS[plan.name as keyof typeof PRICE_IDS])}
                       className={`mt-8 block w-full border-2 border-gray-900 rounded-md py-2 text-sm font-bold text-center ${
                         plan.popular ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-white text-gray-900 hover:bg-gray-50'
                       }`}
-                      text="Get started"
-                    />
+                    >
+                      Get started
+                    </button>
                   </div>
                   <div className="pt-6 pb-8 px-6 bg-gray-50 rounded-b-lg border-t border-gray-200">
                     <h4 className="text-sm font-bold text-gray-900 tracking-wide uppercase">What's included</h4>

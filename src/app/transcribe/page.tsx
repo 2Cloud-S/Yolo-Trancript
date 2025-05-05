@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useRouter } from 'next/navigation';
 import { Loader2, UploadCloud, Mic, XCircle, AlertTriangle } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Database } from '@/types/supabase';
 
 // Define simple UI components to avoid needing external imports
@@ -136,7 +136,7 @@ export default function TranscribePage() {
   // Get user info using Supabase auth-helpers-nextjs
   useEffect(() => {
     const fetchUser = async () => {
-      const supabase = createClient();
+      const supabase = createClientComponentClient<Database>();
       const { data } = await supabase.auth.getSession();
       if (data.session) {
         setUser(data.session.user);

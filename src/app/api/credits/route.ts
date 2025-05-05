@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { Database } from '@/types/supabase';
-import { hasEfficientCredits, logCreditUsage, createAdminClient } from '@/lib/supabase/admin-client';
+import { hasEfficientCredits, logCreditUsage } from '@/lib/supabase/admin-client';
 
 // Calculate credits needed based on audio duration (in seconds)
 function calculateCreditsNeeded(durationInSeconds: number): number {
@@ -27,43 +27,30 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    // Use admin client to bypass RLS for reliable data access
-    const adminClient = createAdminClient();
-    
     // Get user's credit information
-    const { data, error } = await adminClient
-      .from('user_credits')
-      .select('credits_balance')
+    const { data, error } = await supabase
+      .from('user_credit_summary')
+      .select('*')
       .eq('user_id', user.id)
       .single();
       
     if (error) {
       console.error('Error fetching user credits:', error);
-      
-      // If no records found, create an initial record with 0 credits
-      if (error.code === 'PGRST116') { // Not found
-        const { data: newData, error: createError } = await adminClient
-          .from('user_credits')
-          .insert({ user_id: user.id, credits_balance: 0 })
-          .select('credits_balance')
-          .single();
-          
-        if (createError) {
-          console.error('Error creating user credits record:', createError);
-          return NextResponse.json({ error: 'Failed to fetch credit information' }, { status: 500 });
-        }
-        
-        return NextResponse.json({
-          credits_balance: 0
-        });
-      }
-      
       return NextResponse.json({ error: 'Failed to fetch credit information' }, { status: 500 });
     }
     
-    return NextResponse.json({
-      credits_balance: data.credits_balance
-    });
+    // If no credit record exists yet, return default values
+    if (!data) {
+      return NextResponse.json({
+        credits_balance: 0,
+        total_credits_purchased: 0,
+        total_credits_used: 0,
+        purchase_count: 0,
+        usage_count: 0
+      });
+    }
+    
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Unexpected error in credits API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -124,12 +111,35 @@ export async function POST(req: NextRequest) {
       });
     }
     
-    // Disable history access for regular users
+    // Get transaction history
     if (action === 'history') {
-      // Return empty data - users are not allowed to access credit history
+      // Fetch credit transactions
+      const { data: transactions, error: txError } = await supabase
+        .from('credit_transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+        
+      if (txError) {
+        console.error('Error fetching transactions:', txError);
+        return NextResponse.json({ error: 'Failed to fetch transactions' }, { status: 500 });
+      }
+      
+      // Fetch credit usage
+      const { data: usage, error: usageError } = await supabase
+        .from('credit_usage')
+        .select('*, transcriptions(file_name)')
+        .eq('user_id', user.id)
+        .order('used_at', { ascending: false });
+        
+      if (usageError) {
+        console.error('Error fetching usage:', usageError);
+        return NextResponse.json({ error: 'Failed to fetch usage history' }, { status: 500 });
+      }
+      
       return NextResponse.json({
-        transactions: [],
-        usage: []
+        transactions,
+        usage
       });
     }
     
