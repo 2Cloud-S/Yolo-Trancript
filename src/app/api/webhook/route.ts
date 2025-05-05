@@ -9,17 +9,37 @@ const CREDIT_PACKAGES: Record<string, number> = {
   'starter': 50, 
   'starter pack': 50,
   'starter package': 50,
+  'small': 50,
+  'Small': 50,
+  'small package': 50,
+  'small pack': 50,
+  'basic': 50,
+  'Basic': 50,
   'Pro': 100,
   'pro': 100,
   'pro package': 100,
   'professional': 100,
+  'medium': 100,
+  'Medium': 100,
+  'medium package': 100,
+  'medium pack': 100,
   'Creator': 250,
   'creator': 250,
   'creator package': 250,
+  'large': 250,
+  'Large': 250,
+  'large package': 250,
+  'large pack': 250,
   'Power': 500,
   'power': 500,
   'power package': 500,
-  'power user': 500
+  'power user': 500,
+  'elite': 500,
+  'Elite': 500,
+  'premium': 500,
+  'Premium': 500,
+  'enterprise': 500,
+  'Enterprise': 500
 };
 
 // Helper class for Paddle webhook signature verification
@@ -202,7 +222,27 @@ export async function POST(req: NextRequest) {
               console.log('✅ Found email in item.customer.email:', customerEmail);
               break;
             }
+            
+            // Check for customer data in custom_data of each item
+            if (item.custom_data && item.custom_data.user_email) {
+              customerEmail = item.custom_data.user_email;
+              console.log('✅ Found email in item.custom_data.user_email:', customerEmail);
+              break;
+            }
+            
+            // Look for customer email in price fields (sometimes it's nested there)
+            if (item.price && item.price.customer && item.price.customer.email) {
+              customerEmail = item.price.customer.email;
+              console.log('✅ Found email in item.price.customer.email:', customerEmail);
+              break;
+            }
           }
+        }
+        
+        // Paddle v2 format specific check - look for checkout.customer.email
+        if (!customerEmail && transactionData.checkout && transactionData.checkout.customer && transactionData.checkout.customer.email) {
+          customerEmail = transactionData.checkout.customer.email;
+          console.log('✅ Found email in transactionData.checkout.customer.email:', customerEmail);
         }
         
         // Check if email exists at other locations in the payload as a last resort
@@ -238,11 +278,24 @@ export async function POST(req: NextRequest) {
         // Log the complete transaction data to help debugging
         console.error('❌ Missing customer data in the webhook payload:', JSON.stringify(transactionData, null, 2));
         
+        // Paddle V2 specific emergency fallback
+        // Sometimes checkout data is included in an odd location - try to search for any 'email' string
+        try {
+          const rawDataString = JSON.stringify(transactionData);
+          const emailMatches = rawDataString.match(/"email":\s*"([^"]+)"/);
+          if (emailMatches && emailMatches[1]) {
+            customerEmail = emailMatches[1];
+            console.log('✅ Found email using emergency fallback match:', customerEmail);
+          }
+        } catch (error) {
+          console.error('❌ Error during emergency email extraction:', error);
+        }
+        
         // Check if we can fallback to a default test user for development
-        if (process.env.NODE_ENV === 'development' && process.env.TEST_USER_EMAIL) {
+        if (!customerEmail && process.env.NODE_ENV === 'development' && process.env.TEST_USER_EMAIL) {
           console.log('⚠️ Using test user email as fallback in development mode');
           customerEmail = process.env.TEST_USER_EMAIL;
-        } else {
+        } else if (!customerEmail) {
           return NextResponse.json({ error: 'Missing customer data' }, { status: 400 });
         }
       }
@@ -330,6 +383,24 @@ export async function POST(req: NextRequest) {
             console.log('✅ Extracted package name from price_id:', packageName);
           }
         }
+        
+        // Special handling for Paddle V2 formats where the package info might be nested differently
+        if (packageName === 'Unknown Package' && firstItem.price && firstItem.price.product) {
+          if (firstItem.price.product.name) {
+            packageName = firstItem.price.product.name;
+            console.log('✅ Found package name in firstItem.price.product.name:', packageName);
+          } else if (firstItem.price.product.description) {
+            packageName = firstItem.price.product.description;
+            console.log('✅ Found package name in firstItem.price.product.description:', packageName);
+          } else if (firstItem.price.product.id && firstItem.price.product.id.includes('_')) {
+            // Extract from product id if it contains semantic information
+            const parts = firstItem.price.product.id.split('_');
+            if (parts.length > 1) {
+              packageName = parts[parts.length - 1].charAt(0).toUpperCase() + parts[parts.length - 1].slice(1);
+              console.log('✅ Extracted package name from product.id:', packageName);
+            }
+          }
+        }
       }
       
       // Extract credit amount from the package name
@@ -351,28 +422,57 @@ export async function POST(req: NextRequest) {
           creditsToAdd = CREDIT_PACKAGES[packageName as keyof typeof CREDIT_PACKAGES];
           console.log('🔍 Found possible package match:', packageName, 'Credits:', creditsToAdd);
         } else {
-          // Default to Starter package as fallback
-          packageName = 'Starter';
-          creditsToAdd = CREDIT_PACKAGES['Starter'];
-          console.log('🔍 Using default package as fallback:', packageName, 'Credits:', creditsToAdd);
+          // Check raw transaction data for clues about the package size
+          try {
+            const transactionAmount = parseFloat(transactionData.amount || '0');
+            console.log('🔍 Transaction amount:', transactionAmount);
+            
+            // Use the transaction amount to determine package size
+            if (transactionAmount > 0) {
+              if (transactionAmount <= 10) {
+                packageName = 'Starter';
+                creditsToAdd = CREDIT_PACKAGES['Starter'];
+              } else if (transactionAmount <= 25) {
+                packageName = 'Pro';
+                creditsToAdd = CREDIT_PACKAGES['Pro'];
+              } else if (transactionAmount <= 50) {
+                packageName = 'Creator';
+                creditsToAdd = CREDIT_PACKAGES['Creator'];
+              } else {
+                packageName = 'Power';
+                creditsToAdd = CREDIT_PACKAGES['Power'];
+              }
+              console.log('🔍 Determined package based on amount:', packageName, 'Credits:', creditsToAdd);
+            } else {
+              // Default to Starter package as fallback
+              packageName = 'Starter';
+              creditsToAdd = CREDIT_PACKAGES['Starter'];
+              console.log('🔍 Using default package as fallback:', packageName, 'Credits:', creditsToAdd);
+            }
+          } catch (err) {
+            // Default to Starter package as fallback on error
+            packageName = 'Starter';
+            creditsToAdd = CREDIT_PACKAGES['Starter'];
+            console.log('🔍 Using default package as fallback due to error:', packageName, 'Credits:', creditsToAdd);
+          }
         }
       }
 
       // Record the transaction
       console.log('🔍 Recording transaction in credit_transactions table');
       try {
-        const { error: txError } = await supabase.from('credit_transactions').insert({
+      const { error: txError } = await supabase.from('credit_transactions').insert({
           user_id: userId,
           paddle_transaction_id: transactionData.id,
           amount: transactionData.amount || 0,
           currency: transactionData.currency_code || 'USD',
-          status: 'completed',
-          credits_added: creditsToAdd,
-          package_name: packageName,
+        status: 'completed',
+        credits_added: creditsToAdd,
+        package_name: packageName,
           metadata: transactionData
-        });
+      });
 
-        if (txError) {
+      if (txError) {
           console.error('❌ Error recording transaction:', txError);
           return NextResponse.json({ 
             error: 'Failed to record transaction', 
@@ -382,36 +482,36 @@ export async function POST(req: NextRequest) {
 
         console.log('✅ Transaction recorded successfully');
 
-        // Check if user already has a credit balance
+      // Check if user already has a credit balance
         console.log('🔍 Checking if user has existing credit balance');
-        const { data: userCredits, error: creditsError } = await supabase
-          .from('user_credits')
-          .select('id, credits_balance')
+      const { data: userCredits, error: creditsError } = await supabase
+        .from('user_credits')
+        .select('id, credits_balance')
           .eq('user_id', userId)
-          .single();
+        .single();
 
-        if (creditsError && creditsError.code !== 'PGRST116') { // Not found error
+      if (creditsError && creditsError.code !== 'PGRST116') { // Not found error
           console.error('❌ Error checking user credits:', creditsError);
           return NextResponse.json({ 
             error: 'Failed to check user credits', 
             details: creditsError.message 
           }, { status: 500 });
-        }
+      }
 
-        // Update or create user credits
-        if (userCredits) {
-          // Update existing balance
+      // Update or create user credits
+      if (userCredits) {
+        // Update existing balance
           const newBalance = userCredits.credits_balance + creditsToAdd;
           console.log('🔍 Updating existing credit balance from', userCredits.credits_balance, 'to', newBalance);
-          const { error: updateError } = await supabase
-            .from('user_credits')
-            .update({
+        const { error: updateError } = await supabase
+          .from('user_credits')
+          .update({
               credits_balance: newBalance,
               updated_at: new Date().toISOString()
-            })
-            .eq('id', userCredits.id);
+          })
+          .eq('id', userCredits.id);
 
-          if (updateError) {
+        if (updateError) {
             console.error('❌ Error updating user credits:', updateError);
             return NextResponse.json({ 
               error: 'Failed to update credits', 
@@ -420,17 +520,17 @@ export async function POST(req: NextRequest) {
           }
           
           console.log('✅ Credits updated successfully. New balance:', newBalance);
-        } else {
-          // Create new balance
+      } else {
+        // Create new balance
           console.log('🔍 Creating new credit balance with', creditsToAdd, 'credits');
-          const { error: createError } = await supabase
-            .from('user_credits')
-            .insert({
+        const { error: createError } = await supabase
+          .from('user_credits')
+          .insert({
               user_id: userId,
-              credits_balance: creditsToAdd
-            });
+            credits_balance: creditsToAdd
+          });
 
-          if (createError) {
+        if (createError) {
             console.error('❌ Error creating user credits:', createError);
             return NextResponse.json({ 
               error: 'Failed to create credits', 
