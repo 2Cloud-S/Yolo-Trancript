@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { initPaddle, openCheckout } from '@/lib/paddle/client';
-import supabase from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/types/supabase';
 import { useRouter } from 'next/navigation';
 
@@ -110,6 +110,7 @@ export default function CreditPurchaseButton({
     const fetchUser = async () => {
       logInfo('Fetching user data for credit purchase...');
       try {
+        const supabase = createClient();
         const { data, error } = await supabase.auth.getUser();
         
         if (error) {

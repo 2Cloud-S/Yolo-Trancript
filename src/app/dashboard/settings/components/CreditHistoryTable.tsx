@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { CreditCard, DownloadCloud, ArrowDown, ArrowUp, Loader2 } from 'lucide-react';
-import supabase from '@/lib/supabase/client';
+import { supabase } from '@/lib/supabase'; // Import the direct client
 
 // Define simple UI components to avoid needing external imports
 const Table = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
@@ -111,127 +111,12 @@ type Usage = {
   transcription_id: string | null;
 };
 
-// Add these lines at the top to define the logInfo and logError functions
-const logInfo = (message: string) => {
-  console.log(`[CreditHistoryTable] ${message}`);
-};
-
-const logError = (message: string, error?: any) => {
-  console.error(`[CreditHistoryTable] ${message}`, error || '');
-};
-
-// Add a function to check if the realtime schema exists
-const checkRealtimeSchema = async (client: any, debugSetter?: (value: string | null) => void) => {
-  try {
-    logInfo('Checking if realtime schema exists...');
-    
-    // Check if the realtime schema is available
-    const { data, error } = await client.rpc('check_realtime_schema_exists', {});
-    
-    if (error) {
-      logError('Error checking realtime schema:', error);
-      if (debugSetter) {
-        debugSetter(`Realtime schema issue detected: ${error.message}. This might cause subscription errors.`);
-      }
-      return false;
-    }
-    
-    return !!data;
-  } catch (error: any) {
-    logError('Error checking realtime schema:', error);
-    return false;
-  }
-};
-
-// Add a function to check if CORS extensions might be causing issues
-const checkForCORSBlockers = (debugSetter?: (value: string | null) => void) => {
-  // Check if any browser extensions might be blocking requests
-  const ua = window.navigator.userAgent;
-  const extensionsWarning = 
-    "IMPORTANT: Some browser extensions (like 'Allow CORS', 'CORS Unblock', etc.) " +
-    "can block API requests. If you're seeing failed fetch errors, try disabling these extensions.";
-
-  logInfo('Checking for potential CORS issues...');
-  
-  // Check for Chrome
-  if (ua.indexOf('Chrome') > -1) {
-    // Look for extension clues in error messages
-    const consoleErrorListener = (event: ErrorEvent) => {
-      if (event.error && event.error.message && (
-        event.error.message.includes('blocked by CORS policy') || 
-        event.error.message.includes('NetworkError') ||
-        event.error.message.includes('Failed to fetch')
-      )) {
-        logError('Possible CORS issue detected:', extensionsWarning);
-        if (debugSetter) {
-          debugSetter('Possible CORS issue detected. Try disabling browser extensions.');
-        }
-      }
-    };
-    
-    window.addEventListener('error', consoleErrorListener);
-    
-    return () => {
-      window.removeEventListener('error', consoleErrorListener);
-    };
-  }
-  
-  return () => {}; // Empty cleanup function if not Chrome
-};
-
-// Add a function to check if the required tables exist
-const checkDatabaseTables = async (client: any) => {
-  try {
-    logInfo('Checking if required database tables exist...');
-    
-    // First, check if credit_transactions table exists
-    const { data: transactionsMeta, error: transactionsMetaError } = await client
-      .from('credit_transactions')
-      .select('id')
-      .limit(1);
-      
-    if (transactionsMetaError) {
-      logError('Error checking credit_transactions table:', transactionsMetaError);
-      return {
-        tablesExist: false,
-        error: `credit_transactions error: ${transactionsMetaError.message}`,
-      };
-    }
-    
-    // Next, check if credit_usage table exists
-    const { data: usageMeta, error: usageMetaError } = await client
-      .from('credit_usage')
-      .select('id')
-      .limit(1);
-      
-    if (usageMetaError) {
-      logError('Error checking credit_usage table:', usageMetaError);
-      return {
-        tablesExist: false,
-        error: `credit_usage error: ${usageMetaError.message}`,
-      };
-    }
-    
-    return {
-      tablesExist: true,
-      error: null,
-    };
-  } catch (error: any) {
-    logError('Error checking database tables:', error);
-    return {
-      tablesExist: false,
-      error: error.message,
-    };
-  }
-};
-
 export function CreditHistoryTable() {
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [usageHistory, setUsageHistory] = useState<Usage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('purchases');
-  const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -244,114 +129,69 @@ export function CreditHistoryTable() {
     window.addEventListener('hashchange', handleHashChange);
     handleHashChange(); // Initialize based on current hash
 
-    // Check for CORS blocking extensions
-    const corsBlockerCleanup = checkForCORSBlockers(setDebugInfo);
-    
-    const fetchCreditHistory = async () => {
-      setLoading(true);
-      setError(null);
-      
-      logInfo('Starting credit history fetch...');
-      
-      try {
-        // Check if user is authenticated
-        logInfo('Checking authentication...');
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          logError('Session error:', sessionError);
-          throw new Error(`Authentication error: ${sessionError.message}`);
-        }
-        
-        if (!session) {
-          logError('No session found');
-          throw new Error('Authentication required');
-        }
-        
-        logInfo(`Authenticated as user: ${session.user.id}`);
-        
-        // Fetch the user's transactions
-        logInfo('Fetching transactions directly via Supabase client...');
-        const { data: transactionsData, error: transactionsError } = await supabase
-          .from('credit_transactions')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false });
-        
-        if (transactionsError) {
-          logError('Transaction fetch error:', transactionsError);
-          throw new Error(`Error fetching transactions: ${transactionsError.message}`);
-        }
-        
-        logInfo(`Successfully fetched ${transactionsData?.length || 0} transactions`);
-        
-        // Fetch the user's credit usage
-        logInfo('Fetching usage history directly via Supabase client...');
-        const { data: usageData, error: usageError } = await supabase
-          .from('credit_usage')
-          .select('*, transcriptions(file_name)')
-          .eq('user_id', session.user.id)
-          .order('used_at', { ascending: false });
-        
-        if (usageError) {
-          logError('Usage fetch error:', usageError);
-          throw new Error(`Error fetching usage: ${usageError.message}`);
-        }
-        
-        logInfo(`Successfully fetched ${usageData?.length || 0} usage records`);
-        
-        setTransactions(transactionsData || []);
-        setUsageHistory(usageData || []);
-      } catch (err: any) {
-        logError('Error in direct Supabase fetch:', err);
-        setDebugInfo(`Direct fetch error: ${err.message}`);
-        
-        // Fallback to API route if direct Supabase access fails
-        logInfo('Falling back to API route...');
-        try {
-          logInfo('Sending API request to /api/credits...');
-          const response = await fetch('/api/credits', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              action: 'history',
-            }),
-            // Add cache: 'no-store' to prevent caching issues
-            cache: 'no-store',
-          });
-          
-          logInfo(`API response status: ${response.status}`);
-          
-          if (!response.ok) {
-            const errorText = await response.text();
-            logError(`API response error (${response.status}):`, errorText);
-            throw new Error(`Failed to fetch credit history: ${response.statusText} - ${errorText}`);
-          }
-          
-          const data = await response.json();
-          logInfo('Successfully parsed API response');
-          
-          setTransactions(data.transactions || []);
-          setUsageHistory(data.usage || []);
-          setError(null); // Clear error if fallback succeeded
-          logInfo('Fallback to API route successful');
-        } catch (fallbackErr: any) {
-          logError('Error in fallback API fetch:', fallbackErr);
-          setError(fallbackErr.message || 'Failed to load credit history');
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    
+    // Fetch credit history on mount
     fetchCreditHistory();
     
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
     };
   }, []);
+
+  // Function to fetch credit history data
+  const fetchCreditHistory = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // First get the current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        throw new Error(`Authentication error: ${userError.message}`);
+      }
+      
+      if (!user) {
+        setError('Please sign in to view your credit history');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('Fetching credit history for user:', user.id);
+      
+      // Fetch transactions and usage data in parallel
+      const [transactionsResponse, usageResponse] = await Promise.all([
+        supabase
+          .from('credit_transactions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false }),
+          
+        supabase
+          .from('credit_usage')
+          .select('*, transcriptions(file_name)')
+          .eq('user_id', user.id)
+          .order('used_at', { ascending: false })
+      ]);
+      
+      if (transactionsResponse.error) {
+        console.error('Error fetching transactions:', transactionsResponse.error);
+        throw new Error(`Failed to fetch transactions: ${transactionsResponse.error.message}`);
+      }
+      
+      if (usageResponse.error) {
+        console.error('Error fetching usage:', usageResponse.error);
+        throw new Error(`Failed to fetch usage: ${usageResponse.error.message}`);
+      }
+      
+      setTransactions(transactionsResponse.data || []);
+      setUsageHistory(usageResponse.data || []);
+    } catch (err: any) {
+      console.error('Error fetching credit history:', err);
+      setError(err.message || 'Failed to load credit history');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -369,44 +209,22 @@ export function CreditHistoryTable() {
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-        <p className="font-medium">{error.includes('Authentication') ? 'Authentication Error' : 'Error Loading Data'}</p>
-        <p className="mt-1 text-sm">{error}</p>
-        {error.includes('Authentication') ? (
-          <div className="mt-4 flex gap-3">
-            <button
-              onClick={() => window.location.href = '/auth/login'}
-              className="text-white bg-red-700 hover:bg-red-800 px-4 py-2 rounded text-sm"
-            >
-              Sign In Again
-            </button>
-            <button
-              onClick={() => window.location.reload()}
-              className="text-red-800 bg-white border border-red-300 px-4 py-2 rounded text-sm"
-            >
-              Refresh Page
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => window.location.reload()}
-            className="text-red-800 underline mt-2 text-sm"
-          >
-            Try again
-          </button>
-        )}
+        <p>{error}</p>
+        <button
+          onClick={() => {
+            setLoading(true);
+            fetchCreditHistory();
+          }}
+          className="text-red-800 underline mt-2 text-sm"
+        >
+          Try again
+        </button>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {process.env.NODE_ENV === 'development' && debugInfo && (
-        <div className="p-3 bg-gray-100 border border-gray-300 rounded text-xs overflow-auto mb-4">
-          <p className="font-medium text-gray-700">Debug info:</p>
-          <pre className="mt-1 text-gray-600">{debugInfo}</pre>
-        </div>
-      )}
-      
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="purchases">Purchases</TabsTrigger>

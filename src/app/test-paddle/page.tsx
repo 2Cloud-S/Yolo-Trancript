@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import supabase from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/types/supabase';
 import { initPaddle, openCheckout } from '@/lib/paddle/client';
 import Link from 'next/link';
@@ -32,6 +32,7 @@ export default function TestPaddlePage() {
         
         // Check user authentication
         log('Checking user authentication...');
+        const supabase = createClient();
         const { data, error } = await supabase.auth.getUser();
         
         if (error) {
