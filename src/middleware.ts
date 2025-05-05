@@ -2,16 +2,26 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
+  // Parse the URL to check the path
+  const url = new URL(request.url);
+  const path = url.pathname;
+  
+  // Exclude webhook endpoints from middleware processing
+  // These need to be accessible by external services without authentication
+  if (path.startsWith('/api/webhook') || path === '/webhook-test') {
+    console.log(`[Middleware] Skipping middleware for webhook endpoint: ${path}`);
+    return NextResponse.next();
+  }
+  
   let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   });
 
-  // Parse the URL to check if it's a protected route
-  const url = new URL(request.url);
-  const isProtectedRoute = url.pathname.startsWith('/dashboard') || 
-                           url.pathname.startsWith('/transcribe');
+  // Check if it's a protected route
+  const isProtectedRoute = path.startsWith('/dashboard') || 
+                           path.startsWith('/transcribe');
   
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
