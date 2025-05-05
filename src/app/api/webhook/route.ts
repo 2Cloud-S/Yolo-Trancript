@@ -10,38 +10,106 @@ const CREDIT_PACKAGES = {
   'Power': 500,
 };
 
+// Helper class for Paddle webhook signature verification
+class PaddleWebhookVerifier {
+  constructor(private secret: string) {
+    if (!secret) {
+      console.warn('⚠️ No webhook secret provided');
+    }
+  }
+
+  async verifySignature(request: NextRequest): Promise<{ isValid: boolean; body: any }> {
+    try {
+      const signature = request.headers.get('paddle-signature');
+      if (!signature) {
+        console.error('❌ No paddle-signature header found');
+        return { isValid: false, body: null };
+      }
+
+      // Extract the raw body text
+      const rawBody = await request.text();
+      console.log('🔍 Raw body length:', rawBody.length);
+      
+      if (!rawBody || rawBody.trim() === '') {
+        console.log('ℹ️ Empty request body received');
+        return { isValid: false, body: null };
+      }
+      
+      // Extract signature components
+      const matches = signature.match(/^ts=(\d+);h1=(.+)$/);
+      if (!matches) {
+        console.error('❌ Invalid signature format');
+        return { isValid: false, body: null };
+      }
+      
+      const [_, timestamp, hash] = matches;
+      
+      // Compute the HMAC
+      const hmac = crypto.createHmac('sha256', this.secret);
+      const data = `${timestamp}:${rawBody}`;
+      const computedHash = hmac.update(data).digest('hex');
+      
+      console.log('🔍 Timestamp:', timestamp);
+      console.log('🔍 Received hash:', hash);
+      console.log('🔍 Computed hash:', computedHash);
+      
+      const isValid = computedHash === hash;
+      
+      // Parse the body as JSON
+      let parsedBody = null;
+      try {
+        parsedBody = JSON.parse(rawBody);
+      } catch (e) {
+        console.error('❌ Error parsing JSON body:', e);
+        return { isValid, body: null };
+      }
+      
+      return { 
+        isValid, 
+        body: parsedBody 
+      };
+    } catch (error) {
+      console.error('❌ Error verifying signature:', error);
+      return { isValid: false, body: null };
+    }
+  }
+}
+
 // Process Paddle webhook
 export async function POST(req: NextRequest) {
   console.log('🔍 Webhook received:', new Date().toISOString());
+  console.log('🔍 Request headers:', JSON.stringify(Object.fromEntries(req.headers.entries())));
+  console.log('🔍 Request URL:', req.url);
   
   try {
-    // Log request information for debugging
-    console.log('🔍 Request headers:', JSON.stringify(Object.fromEntries(req.headers.entries())));
-    console.log('🔍 Request URL:', req.url);
-    console.log('🔍 Request method:', req.method);
+    // Get webhook secret
+    const webhookSecret = process.env.PADDLE_NOTIFICATION_WEBHOOK_SECRET || '';
+    console.log('🔍 Webhook secret present:', !!webhookSecret);
     
-    // Get the raw request body for signature verification
-    let rawBody = await req.text();
-    console.log('🔍 Raw body length:', rawBody.length);
+    // Verify the signature and get the body
+    const verifier = new PaddleWebhookVerifier(webhookSecret);
+    const { isValid, body } = await verifier.verifySignature(req);
     
-    // Handle empty request body (for testing with curl)
-    if (!rawBody || rawBody.trim() === '') {
-      console.log('ℹ️ Empty request body received - likely a test call');
-      return NextResponse.json({ message: 'Webhook endpoint is working, but no data was provided.' });
+    // If signature is invalid or test request without signature
+    if (!isValid) {
+      // Check if this is a test ping without a signature
+      if (!req.headers.get('paddle-signature')) {
+        console.log('ℹ️ Test request detected (no signature)');
+        return NextResponse.json({ message: 'Webhook endpoint is working, but no signature was provided.' });
+      }
+      
+      // Empty body check (for curl tests)
+      const rawText = await req.clone().text();
+      if (!rawText || rawText.trim() === '') {
+        console.log('ℹ️ Empty request body received - likely a test call');
+        return NextResponse.json({ message: 'Webhook endpoint is working, but no data was provided.' });
+      }
+      
+      console.error('❌ Invalid webhook signature');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
     
-    console.log('🔍 Raw body preview:', rawBody.substring(0, 200) + (rawBody.length > 200 ? '...' : ''));
-    
-    let body;
-    try {
-      body = JSON.parse(rawBody);
-      console.log('🔍 Event type:', body.event_type);
-      console.log('🔍 Event ID:', body.event_id);
-      console.log('🔍 Notification ID:', body.notification_id);
-    } catch (e) {
-      console.error('❌ Error parsing JSON body:', e);
-      return NextResponse.json({ error: 'Invalid JSON', message: 'The request body could not be parsed as JSON.' }, { status: 400 });
-    }
+    console.log('✅ Signature verified successfully');
     
     // Check for required Paddle webhook fields
     if (!body.event_type || !body.data) {
@@ -50,31 +118,6 @@ export async function POST(req: NextRequest) {
         error: 'Invalid webhook payload', 
         message: 'The webhook payload is missing required fields (event_type, data)' 
       }, { status: 400 });
-    }
-    
-    const paddleSignature = req.headers.get('paddle-signature');
-    console.log('🔍 Paddle signature present:', !!paddleSignature);
-    
-    // Only verify signature if it's present (allows for manual testing)
-    if (paddleSignature) {
-      // Verify webhook signature
-      const webhookSecret = process.env.PADDLE_NOTIFICATION_WEBHOOK_SECRET || '';
-      console.log('🔍 Webhook secret present:', !!webhookSecret);
-      
-      const isValid = verifyPaddleSignature(
-        rawBody,
-        paddleSignature,
-        webhookSecret
-      );
-
-      if (!isValid) {
-        console.error('❌ Invalid webhook signature');
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-      }
-
-      console.log('✅ Signature verified successfully');
-    } else {
-      console.log('⚠️ No Paddle signature provided - skipping verification (not recommended for production)');
     }
     
     // Process different webhook event types
@@ -237,7 +280,7 @@ export async function POST(req: NextRequest) {
 }
 
 // Also handle OPTIONS requests for CORS preflight
-export async function OPTIONS(req: NextRequest) {
+export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {
@@ -246,28 +289,4 @@ export async function OPTIONS(req: NextRequest) {
       'Access-Control-Allow-Headers': 'Content-Type, Paddle-Signature'
     }
   });
-}
-
-// Validate the webhook signature from Paddle
-function verifyPaddleSignature(payload: string, signature: string, secret: string): boolean {
-  if (!secret) {
-    console.warn('⚠️ No webhook secret provided');
-    return false;
-  }
-  
-  try {
-    console.log('🔍 Verifying signature with payload length:', payload.length);
-    const hmac = crypto.createHmac('sha256', secret);
-    const computedSignature = hmac.update(payload).digest('hex');
-    console.log('🔍 Computed signature:', computedSignature);
-    console.log('🔍 Provided signature:', signature);
-    
-    return crypto.timingSafeEqual(
-      Buffer.from(computedSignature, 'hex'),
-      Buffer.from(signature, 'hex')
-    );
-  } catch (error) {
-    console.error('❌ Signature verification error:', error);
-    return false;
-  }
 } 
