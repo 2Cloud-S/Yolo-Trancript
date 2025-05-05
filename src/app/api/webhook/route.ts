@@ -202,24 +202,28 @@ export async function POST(req: NextRequest) {
 
       // Find the user by email
       console.log('🔍 Looking up user by email:', customerEmail);
-      const { data: usersData, error: listError } = await supabase
-        .auth.admin.listUsers({
-          page: 1,
-          perPage: 100,
-        });
-        
-      if (listError || !usersData || usersData.users.length === 0) {
-        console.error('❌ No users found:', listError);
-        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      
+      // Variable to store the user ID
+      let userId: string;
+      
+      // Try to directly query auth.users (needs service role key)
+      const { data: userData, error: userError } = await supabase
+        .from('auth.users')
+        .select('id, email')
+        .eq('email', customerEmail)
+        .maybeSingle();
+      
+      if (userError) {
+        console.error('❌ Error querying user by email:', userError);
+        return NextResponse.json({ error: 'Database error while looking up user' }, { status: 500 });
       }
-
-      const userData = usersData.users.find(user => user.email === customerEmail);
+      
       if (!userData) {
-        console.error('❌ User not found in results:', customerEmail);
+        console.error('❌ User not found with email:', customerEmail);
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
       
-      const userId = userData.id;
+      userId = userData.id;
       console.log('✅ User found:', userId);
 
       // Get the package name and credits
