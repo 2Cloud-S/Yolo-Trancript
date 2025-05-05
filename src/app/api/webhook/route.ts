@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPaddleClient } from '@/lib/paddle/api-client';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/server';
 import crypto from 'crypto';
 
 interface PaddleCustomer {
@@ -354,11 +354,11 @@ export async function POST(req: NextRequest) {
       console.error('❌ Invalid webhook signature');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
-    
+
     // Parse the body
     const body = JSON.parse(rawBody);
     console.log('🔍 Webhook event type:', body.event_type);
-    
+
     // Handle transaction completed event
     if (body.event_type === 'transaction.completed') {
       console.log('🔍 Processing transaction.completed event');
@@ -423,10 +423,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid package' }, { status: 400 });
       }
 
-      // Initialize Supabase client
-      const supabase = await createClient();
+      // Initialize Supabase client with service role
+      const supabase = createServiceRoleClient();
 
-      // Get user ID from email using auth.users
+      // Get user ID from email using auth schema
       const { data: userData, error: userError } = await supabase
         .from('auth.users')
         .select('id')
