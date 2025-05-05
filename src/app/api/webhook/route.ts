@@ -202,18 +202,25 @@ export async function POST(req: NextRequest) {
 
       // Find the user by email
       console.log('🔍 Looking up user by email:', customerEmail);
-      const { data: userData, error: userError } = await supabase
-        .from('auth.users')
-        .select('id')
-        .eq('email', customerEmail)
-        .single();
-
-      if (userError || !userData) {
-        console.error('❌ User not found:', customerEmail, userError);
+      const { data: usersData, error: listError } = await supabase
+        .auth.admin.listUsers({
+          page: 1,
+          perPage: 100,
+        });
+        
+      if (listError || !usersData || usersData.users.length === 0) {
+        console.error('❌ No users found:', listError);
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
 
-      console.log('✅ User found:', userData.id);
+      const userData = usersData.users.find(user => user.email === customerEmail);
+      if (!userData) {
+        console.error('❌ User not found in results:', customerEmail);
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
+      
+      const userId = userData.id;
+      console.log('✅ User found:', userId);
 
       // Get the package name and credits
       const lineItems = transactionData.items || [];
@@ -262,7 +269,7 @@ export async function POST(req: NextRequest) {
       // Record the transaction
       console.log('🔍 Recording transaction in credit_transactions table');
       const { error: txError } = await supabase.from('credit_transactions').insert({
-        user_id: userData.id,
+        user_id: userId,
         paddle_transaction_id: transactionData.id,
         amount: transactionData.amount || 0,
         currency: transactionData.currency_code || 'USD',
@@ -284,7 +291,7 @@ export async function POST(req: NextRequest) {
       const { data: userCredits, error: creditsError } = await supabase
         .from('user_credits')
         .select('id, credits_balance')
-        .eq('user_id', userData.id)
+        .eq('user_id', userId)
         .single();
 
       if (creditsError && creditsError.code !== 'PGRST116') { // Not found error
@@ -313,7 +320,7 @@ export async function POST(req: NextRequest) {
         const { error: createError } = await supabase
           .from('user_credits')
           .insert({
-            user_id: userData.id,
+            user_id: userId,
             credits_balance: creditsToAdd
           });
 
