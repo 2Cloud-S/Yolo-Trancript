@@ -3,11 +3,23 @@ import { createAdminClient } from '@/lib/supabase/admin-client';
 import crypto from 'crypto';
 
 // Credit mapping for each package
-const CREDIT_PACKAGES = {
+// Add normalized versions of package names for better matching
+const CREDIT_PACKAGES: Record<string, number> = {
   'Starter': 50,
+  'starter': 50, 
+  'starter pack': 50,
+  'starter package': 50,
   'Pro': 100,
+  'pro': 100,
+  'pro package': 100,
+  'professional': 100,
   'Creator': 250,
+  'creator': 250,
+  'creator package': 250,
   'Power': 500,
+  'power': 500,
+  'power package': 500,
+  'power user': 500
 };
 
 // Helper class for Paddle webhook signature verification
@@ -119,7 +131,7 @@ export async function POST(req: NextRequest) {
         message: 'The webhook payload is missing required fields (event_type, data)' 
       }, { status: 400 });
     }
-    
+
     // Process different webhook event types
     const eventType = body.event_type;
     console.log(`🔍 Processing Paddle webhook: ${eventType}`);
@@ -131,57 +143,133 @@ export async function POST(req: NextRequest) {
     // Handle transaction completed event
     if (eventType === 'transaction.completed') {
       console.log('🔍 Processing transaction.completed event');
-      // Extract data from the webhook
-      const { transaction, customer } = body.data;
+      // Log the complete payload for debugging
+      console.log('🔍 Complete webhook payload:', JSON.stringify(body));
       
-      if (!transaction || !customer) {
-        console.error('❌ Missing transaction or customer data', JSON.stringify(body.data));
-        return NextResponse.json({ error: 'Missing transaction or customer data' }, { status: 400 });
+      // Extract data from the webhook with more robust parsing
+      const transactionData = body.data;
+      console.log('🔍 Transaction data:', JSON.stringify(transactionData));
+      
+      if (!transactionData || !transactionData.id) {
+        console.error('❌ Missing transaction data', JSON.stringify(body.data));
+        return NextResponse.json({ error: 'Missing transaction data' }, { status: 400 });
       }
+      
+      // Attempt to extract customer information
+      // The path might be different depending on Paddle's payload structure
+      let customerEmail = null;
+      
+      // Try different possible paths to customer email
+      if (transactionData.customer && transactionData.customer.email) {
+        customerEmail = transactionData.customer.email;
+      } else if (transactionData.billing_details && transactionData.billing_details.email) {
+        customerEmail = transactionData.billing_details.email;
+      } else if (transactionData.buyer && transactionData.buyer.email) {
+        customerEmail = transactionData.buyer.email;
+      } else {
+        // Check if email exists at other locations in the payload
+        try {
+          // Look recursively for email property
+          const findEmailInObject = (obj: any): string | null => {
+            if (!obj || typeof obj !== 'object') return null;
+            
+            if (obj.email && typeof obj.email === 'string') {
+              return obj.email;
+            }
+            
+            for (const key in obj) {
+              if (typeof obj[key] === 'object') {
+                const result = findEmailInObject(obj[key]);
+                if (result) return result;
+              }
+            }
+            
+            return null;
+          };
+          
+          customerEmail = findEmailInObject(transactionData);
+        } catch (error) {
+          console.error('❌ Error searching for customer email:', error);
+        }
+      }
+      
+      if (!customerEmail) {
+        console.error('❌ Missing customer data', JSON.stringify(transactionData));
+        return NextResponse.json({ error: 'Missing customer data' }, { status: 400 });
+      }
+      
+      console.log('🔍 Found customer email:', customerEmail);
 
       // Find the user by email
-      console.log('🔍 Looking up user by email:', customer.email);
+      console.log('🔍 Looking up user by email:', customerEmail);
       const { data: userData, error: userError } = await supabase
         .from('auth.users')
         .select('id')
-        .eq('email', customer.email)
+        .eq('email', customerEmail)
         .single();
 
       if (userError || !userData) {
-        console.error('❌ User not found:', customer.email, userError);
+        console.error('❌ User not found:', customerEmail, userError);
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
 
       console.log('✅ User found:', userData.id);
 
       // Get the package name and credits
-      const lineItems = transaction.items || [];
+      const lineItems = transactionData.items || [];
       if (lineItems.length === 0) {
         console.error('❌ No line items found');
         return NextResponse.json({ error: 'No line items found' }, { status: 400 });
       }
 
-      const packageName = lineItems[0].product?.name || 'Unknown Package';
+      // Extract product name by looking through different possible fields
+      let packageName = 'Unknown Package';
+      const firstItem = lineItems[0];
+      
+      if (firstItem.product && firstItem.product.name) {
+        packageName = firstItem.product.name;
+      } else if (firstItem.price && firstItem.price.product_name) {
+        packageName = firstItem.price.product_name;
+      } else if (firstItem.name) {
+        packageName = firstItem.name;
+      } else if (firstItem.product_name) {
+        packageName = firstItem.product_name;
+      }
+      
       const creditsToAdd = CREDIT_PACKAGES[packageName as keyof typeof CREDIT_PACKAGES] || 0;
 
       console.log('🔍 Package:', packageName, 'Credits to add:', creditsToAdd);
 
       if (creditsToAdd <= 0) {
-        console.error('❌ Invalid credit package:', packageName);
-        return NextResponse.json({ error: 'Invalid credit package' }, { status: 400 });
+        console.error('❌ Invalid credit package or package not found:', packageName);
+        console.log('🔍 Available packages:', Object.keys(CREDIT_PACKAGES).join(', '));
+        
+        // Try to match package name partially
+        const possibleMatch = Object.keys(CREDIT_PACKAGES).find(
+          key => packageName.includes(key) || key.includes(packageName)
+        );
+        
+        if (possibleMatch) {
+          packageName = possibleMatch;
+          console.log('🔍 Found possible package match:', packageName);
+        } else {
+          // Default to Starter package if we can't identify the package
+          packageName = 'Starter';
+          console.log('🔍 Using default package:', packageName);
+        }
       }
 
       // Record the transaction
       console.log('🔍 Recording transaction in credit_transactions table');
       const { error: txError } = await supabase.from('credit_transactions').insert({
         user_id: userData.id,
-        paddle_transaction_id: transaction.id,
-        amount: transaction.amount,
-        currency: transaction.currency_code,
+        paddle_transaction_id: transactionData.id,
+        amount: transactionData.amount || 0,
+        currency: transactionData.currency_code || 'USD',
         status: 'completed',
         credits_added: creditsToAdd,
         package_name: packageName,
-        metadata: transaction
+        metadata: transactionData
       });
 
       if (txError) {
@@ -241,25 +329,27 @@ export async function POST(req: NextRequest) {
     // Handle transaction.updated event
     else if (eventType === 'transaction.updated') {
       console.log('🔍 Processing transaction.updated event');
-      // Log the data for inspection
-      console.log('🔍 Transaction updated data:', JSON.stringify(body.data));
+      // Log the complete data for inspection
+      console.log('🔍 Complete webhook payload:', JSON.stringify(body));
       
-      const { transaction, customer } = body.data;
+      // Extract transaction data with more robust parsing
+      const transactionData = body.data;
+      console.log('🔍 Transaction data:', JSON.stringify(transactionData));
       
-      if (!transaction || !customer) {
-        console.error('❌ Missing transaction or customer data in transaction.updated event');
-        return NextResponse.json({ error: 'Missing transaction or customer data' }, { status: 400 });
+      if (!transactionData || !transactionData.id) {
+        console.error('❌ Missing transaction data', JSON.stringify(body.data));
+        return NextResponse.json({ error: 'Missing transaction data' }, { status: 400 });
       }
       
-      console.log('✅ Transaction.updated event received and logged - Status:', transaction.status);
+      console.log('✅ Transaction.updated event received and logged - ID:', transactionData.id);
+      console.log('✅ Status (if available):', transactionData.status || 'unknown');
       
       // For now, we'll just acknowledge this event
-      // In the future, you can implement specific logic for handling updates
       return NextResponse.json({ 
         success: true, 
         message: 'Transaction.updated event received',
-        transactionId: transaction.id,
-        status: transaction.status
+        transactionId: transactionData.id,
+        status: transactionData.status || 'unknown'
       });
     }
 
