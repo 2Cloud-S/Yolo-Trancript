@@ -12,6 +12,9 @@ export async function POST(req: NextRequest) {
     const eventType = body.event_type || 'transaction.completed';
     const email = body.email || 'test@example.com';
     const packageName = body.package_name || 'Starter';
+    const structure = body.structure || 'default'; // Different payload structures
+    
+    console.log('Generating test webhook event:', { eventType, email, packageName, structure });
     
     // Get webhook secret
     const secret = process.env.PADDLE_NOTIFICATION_WEBHOOK_SECRET;
@@ -27,9 +30,9 @@ export async function POST(req: NextRequest) {
     
     // Create different event types
     if (eventType === 'transaction.completed') {
-      eventData = generateCompletedEvent(email, packageName);
+      eventData = generateCompletedEvent(email, packageName, structure);
     } else if (eventType === 'transaction.updated') {
-      eventData = generateUpdatedEvent(email, packageName);
+      eventData = generateUpdatedEvent(email, packageName, structure);
     } else {
       eventData = {
         event_id: `evt_${generateId()}`,
@@ -87,40 +90,109 @@ export async function POST(req: NextRequest) {
 }
 
 // Generate a completed transaction event
-function generateCompletedEvent(email: string, packageName: string) {
+function generateCompletedEvent(email: string, packageName: string, structure: string = 'default') {
   const transactionId = `txn_${generateId()}`;
-  return {
-    event_id: `evt_${generateId()}`,
-    event_type: 'transaction.completed',
-    occurred_at: new Date().toISOString(),
-    notification_id: `ntf_${generateId()}`,
-    data: {
-      id: transactionId,
-      status: 'completed',
-      customer: {
-        email: email
-      },
-      items: [
-        {
-          price: {
-            product_name: packageName
-          },
-          product: {
-            name: packageName
+  
+  // Create different structure types to match real-world Paddle webhooks
+  if (structure === 'minimal') {
+    // Minimal structure without nested objects
+    return {
+      event_id: `evt_${generateId()}`,
+      event_type: 'transaction.completed',
+      occurred_at: new Date().toISOString(),
+      notification_id: `ntf_${generateId()}`,
+      data: {
+        id: transactionId,
+        status: 'completed',
+        email: email, // Direct email field instead of nested
+        items: [
+          {
+            price_id: `pri_${packageName.toLowerCase()}`,
+            quantity: 1
           }
+        ],
+        amount: 49.99,
+        currency_code: 'USD'
+      }
+    };
+  } else if (structure === 'paddle_v2') {
+    // Structure matching Paddle v2 API format
+    return {
+      event_id: `evt_${generateId()}`,
+      event_type: 'transaction.completed',
+      occurred_at: new Date().toISOString(),
+      notification_id: `ntf_${generateId()}`,
+      data: {
+        id: transactionId,
+        status: 'completed',
+        items: [
+          {
+            price: {
+              id: `pri_${packageName.toLowerCase()}`,
+              description: `${packageName} Package`
+            },
+            quantity: 1
+          }
+        ],
+        customer_id: `ctm_${generateId()}`,
+        address_id: `add_${generateId()}`,
+        business_id: null,
+        custom_data: {
+          user_email: email
+        },
+        collection_mode: 'automatic',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        billed_at: new Date().toISOString(),
+        details: {
+          totals: {
+            subtotal: '4999',
+            tax: '0',
+            total: '4999',
+            grand_total: '4999',
+            fee: '0',
+            earnings: '4999',
+            currency_code: 'USD'
+          },
+          tax_rates_used: []
         }
-      ],
-      billing_details: {
-        email: email
-      },
-      amount: 49.99,
-      currency_code: 'USD'
-    }
-  };
+      }
+    };
+  } else {
+    // Default structure (the one that's been working in our tests)
+    return {
+      event_id: `evt_${generateId()}`,
+      event_type: 'transaction.completed',
+      occurred_at: new Date().toISOString(),
+      notification_id: `ntf_${generateId()}`,
+      data: {
+        id: transactionId,
+        status: 'completed',
+        customer: {
+          email: email
+        },
+        items: [
+          {
+            price: {
+              product_name: packageName
+            },
+            product: {
+              name: packageName
+            }
+          }
+        ],
+        billing_details: {
+          email: email
+        },
+        amount: 49.99,
+        currency_code: 'USD'
+      }
+    };
+  }
 }
 
 // Generate an updated transaction event
-function generateUpdatedEvent(email: string, packageName: string) {
+function generateUpdatedEvent(email: string, packageName: string, structure: string = 'default') {
   const transactionId = `txn_${generateId()}`;
   return {
     event_id: `evt_${generateId()}`,

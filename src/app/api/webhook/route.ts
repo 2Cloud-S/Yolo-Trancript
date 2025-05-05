@@ -159,43 +159,85 @@ export async function POST(req: NextRequest) {
       // The path might be different depending on Paddle's payload structure
       let customerEmail = null;
       
-      // Try different possible paths to customer email
+      // More comprehensive email extraction attempt
+      console.log('🔍 Attempting to extract customer email from various locations in payload');
+      
+      // Common paths for customer email
       if (transactionData.customer && transactionData.customer.email) {
         customerEmail = transactionData.customer.email;
+        console.log('✅ Found email in transactionData.customer.email:', customerEmail);
       } else if (transactionData.billing_details && transactionData.billing_details.email) {
         customerEmail = transactionData.billing_details.email;
+        console.log('✅ Found email in transactionData.billing_details.email:', customerEmail);
       } else if (transactionData.buyer && transactionData.buyer.email) {
         customerEmail = transactionData.buyer.email;
+        console.log('✅ Found email in transactionData.buyer.email:', customerEmail);
+      } else if (transactionData.user && transactionData.user.email) {
+        customerEmail = transactionData.user.email;
+        console.log('✅ Found email in transactionData.user.email:', customerEmail);
+      } else if (transactionData.email) {
+        customerEmail = transactionData.email;
+        console.log('✅ Found email directly in transactionData.email:', customerEmail);
       } else {
-        // Check if email exists at other locations in the payload
-        try {
-          // Look recursively for email property
-          const findEmailInObject = (obj: any): string | null => {
-            if (!obj || typeof obj !== 'object') return null;
-            
-            if (obj.email && typeof obj.email === 'string') {
-              return obj.email;
+        // Check if email exists in custom data if any
+        if (transactionData.custom_data && typeof transactionData.custom_data === 'object') {
+          if (transactionData.custom_data.email) {
+            customerEmail = transactionData.custom_data.email;
+            console.log('✅ Found email in transactionData.custom_data.email:', customerEmail);
+          }
+        }
+        
+        // Check for email in items array if present
+        if (!customerEmail && transactionData.items && Array.isArray(transactionData.items)) {
+          for (const item of transactionData.items) {
+            if (item.customer && item.customer.email) {
+              customerEmail = item.customer.email;
+              console.log('✅ Found email in item.customer.email:', customerEmail);
+              break;
             }
-            
-            for (const key in obj) {
-              if (typeof obj[key] === 'object') {
-                const result = findEmailInObject(obj[key]);
-                if (result) return result;
+          }
+        }
+        
+        // Check if email exists at other locations in the payload as a last resort
+        if (!customerEmail) {
+          try {
+            // Look recursively for email property
+            const findEmailInObject = (obj: any): string | null => {
+              if (!obj || typeof obj !== 'object') return null;
+              
+              if (obj.email && typeof obj.email === 'string') {
+                console.log('✅ Found email in object path:', obj.email);
+                return obj.email;
               }
-            }
+              
+              for (const key in obj) {
+                if (typeof obj[key] === 'object') {
+                  const result = findEmailInObject(obj[key]);
+                  if (result) return result;
+                }
+              }
+              
+              return null;
+            };
             
-            return null;
-          };
-          
-          customerEmail = findEmailInObject(transactionData);
-        } catch (error) {
-          console.error('❌ Error searching for customer email:', error);
+            customerEmail = findEmailInObject(transactionData);
+          } catch (error) {
+            console.error('❌ Error searching for customer email:', error);
+          }
         }
       }
       
       if (!customerEmail) {
-        console.error('❌ Missing customer data', JSON.stringify(transactionData));
-        return NextResponse.json({ error: 'Missing customer data' }, { status: 400 });
+        // Log the complete transaction data to help debugging
+        console.error('❌ Missing customer data in the webhook payload:', JSON.stringify(transactionData, null, 2));
+        
+        // Check if we can fallback to a default test user for development
+        if (process.env.NODE_ENV === 'development' && process.env.TEST_USER_EMAIL) {
+          console.log('⚠️ Using test user email as fallback in development mode');
+          customerEmail = process.env.TEST_USER_EMAIL;
+        } else {
+          return NextResponse.json({ error: 'Missing customer data' }, { status: 400 });
+        }
       }
       
       console.log('🔍 Found customer email:', customerEmail);
@@ -221,115 +263,172 @@ export async function POST(req: NextRequest) {
       console.log('✅ User found:', userId);
 
       // Get the package name and credits
+      let packageName = 'Unknown Package';
+      let creditsToAdd = 0;
+      
+      // Extract items from the transaction data
       const lineItems = transactionData.items || [];
       if (lineItems.length === 0) {
         console.error('❌ No line items found');
         return NextResponse.json({ error: 'No line items found' }, { status: 400 });
       }
 
-      // Extract product name by looking through different possible fields
-      let packageName = 'Unknown Package';
+      console.log('🔍 Processing line items:', JSON.stringify(lineItems));
+      
+      // Try to extract product name from the first item
       const firstItem = lineItems[0];
       
+      // More robust package name extraction
       if (firstItem.product && firstItem.product.name) {
         packageName = firstItem.product.name;
+        console.log('✅ Found package name in firstItem.product.name:', packageName);
       } else if (firstItem.price && firstItem.price.product_name) {
         packageName = firstItem.price.product_name;
+        console.log('✅ Found package name in firstItem.price.product_name:', packageName);
       } else if (firstItem.name) {
         packageName = firstItem.name;
+        console.log('✅ Found package name in firstItem.name:', packageName);
       } else if (firstItem.product_name) {
         packageName = firstItem.product_name;
+        console.log('✅ Found package name in firstItem.product_name:', packageName);
+      } else if (firstItem.price && firstItem.price.name) {
+        packageName = firstItem.price.name;
+        console.log('✅ Found package name in firstItem.price.name:', packageName);
+      } else {
+        // Try searching for the product/price info in a different structure
+        if (firstItem.price_id && firstItem.price_id.includes('_')) {
+          // Sometimes the price_id contains info like "pri_starter" we can extract
+          const parts = firstItem.price_id.split('_');
+          if (parts.length > 1) {
+            packageName = parts[1].charAt(0).toUpperCase() + parts[1].slice(1); // Capitalize first letter
+            console.log('✅ Extracted package name from price_id:', packageName);
+          }
+        }
       }
       
-      const creditsToAdd = CREDIT_PACKAGES[packageName as keyof typeof CREDIT_PACKAGES] || 0;
-
+      // Extract credit amount from the package name
+      creditsToAdd = CREDIT_PACKAGES[packageName as keyof typeof CREDIT_PACKAGES] || 0;
       console.log('🔍 Package:', packageName, 'Credits to add:', creditsToAdd);
 
       if (creditsToAdd <= 0) {
         console.error('❌ Invalid credit package or package not found:', packageName);
-        console.log(' Available packages:', Object.keys(CREDIT_PACKAGES).join(', '));
+        console.log('🔍 Available packages:', Object.keys(CREDIT_PACKAGES).join(', '));
         
         // Try to match package name partially
         const possibleMatch = Object.keys(CREDIT_PACKAGES).find(
-          key => packageName.includes(key) || key.includes(packageName)
+          key => packageName.toLowerCase().includes(key.toLowerCase()) || 
+                key.toLowerCase().includes(packageName.toLowerCase())
         );
         
         if (possibleMatch) {
           packageName = possibleMatch;
-          console.log('🔍 Found possible package match:', packageName);
+          creditsToAdd = CREDIT_PACKAGES[packageName as keyof typeof CREDIT_PACKAGES];
+          console.log('🔍 Found possible package match:', packageName, 'Credits:', creditsToAdd);
         } else {
-          // Default to Starter package if we can't identify the package
+          // Default to Starter package as fallback
           packageName = 'Starter';
-          console.log('🔍 Using default package:', packageName);
+          creditsToAdd = CREDIT_PACKAGES['Starter'];
+          console.log('🔍 Using default package as fallback:', packageName, 'Credits:', creditsToAdd);
         }
       }
 
       // Record the transaction
       console.log('🔍 Recording transaction in credit_transactions table');
-      const { error: txError } = await supabase.from('credit_transactions').insert({
-        user_id: userId,
-        paddle_transaction_id: transactionData.id,
-        amount: transactionData.amount || 0,
-        currency: transactionData.currency_code || 'USD',
-        status: 'completed',
-        credits_added: creditsToAdd,
-        package_name: packageName,
-        metadata: transactionData
-      });
+      try {
+        const { error: txError } = await supabase.from('credit_transactions').insert({
+          user_id: userId,
+          paddle_transaction_id: transactionData.id,
+          amount: transactionData.amount || 0,
+          currency: transactionData.currency_code || 'USD',
+          status: 'completed',
+          credits_added: creditsToAdd,
+          package_name: packageName,
+          metadata: transactionData
+        });
 
-      if (txError) {
-        console.error('❌ Error recording transaction:', txError);
-        return NextResponse.json({ error: 'Failed to record transaction' }, { status: 500 });
-      }
-
-      console.log('✅ Transaction recorded successfully');
-
-      // Check if user already has a credit balance
-      console.log('🔍 Checking if user has existing credit balance');
-      const { data: userCredits, error: creditsError } = await supabase
-        .from('user_credits')
-        .select('id, credits_balance')
-        .eq('user_id', userId)
-        .single();
-
-      if (creditsError && creditsError.code !== 'PGRST116') { // Not found error
-        console.error('❌ Error checking user credits:', creditsError);
-        return NextResponse.json({ error: 'Failed to check user credits' }, { status: 500 });
-      }
-
-      // Update or create user credits
-      if (userCredits) {
-        // Update existing balance
-        console.log('🔍 Updating existing credit balance from', userCredits.credits_balance, 'to', userCredits.credits_balance + creditsToAdd);
-        const { error: updateError } = await supabase
-          .from('user_credits')
-          .update({
-            credits_balance: userCredits.credits_balance + creditsToAdd
-          })
-          .eq('id', userCredits.id);
-
-        if (updateError) {
-          console.error('❌ Error updating user credits:', updateError);
-          return NextResponse.json({ error: 'Failed to update credits' }, { status: 500 });
+        if (txError) {
+          console.error('❌ Error recording transaction:', txError);
+          return NextResponse.json({ 
+            error: 'Failed to record transaction', 
+            details: txError.message 
+          }, { status: 500 });
         }
-      } else {
-        // Create new balance
-        console.log('🔍 Creating new credit balance with', creditsToAdd, 'credits');
-        const { error: createError } = await supabase
+
+        console.log('✅ Transaction recorded successfully');
+
+        // Check if user already has a credit balance
+        console.log('🔍 Checking if user has existing credit balance');
+        const { data: userCredits, error: creditsError } = await supabase
           .from('user_credits')
-          .insert({
-            user_id: userId,
-            credits_balance: creditsToAdd
-          });
+          .select('id, credits_balance')
+          .eq('user_id', userId)
+          .single();
 
-        if (createError) {
-          console.error('❌ Error creating user credits:', createError);
-          return NextResponse.json({ error: 'Failed to create credits' }, { status: 500 });
+        if (creditsError && creditsError.code !== 'PGRST116') { // Not found error
+          console.error('❌ Error checking user credits:', creditsError);
+          return NextResponse.json({ 
+            error: 'Failed to check user credits', 
+            details: creditsError.message 
+          }, { status: 500 });
         }
-      }
 
-      console.log('✅ Credits updated successfully');
-      return NextResponse.json({ success: true });
+        // Update or create user credits
+        if (userCredits) {
+          // Update existing balance
+          const newBalance = userCredits.credits_balance + creditsToAdd;
+          console.log('🔍 Updating existing credit balance from', userCredits.credits_balance, 'to', newBalance);
+          const { error: updateError } = await supabase
+            .from('user_credits')
+            .update({
+              credits_balance: newBalance,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userCredits.id);
+
+          if (updateError) {
+            console.error('❌ Error updating user credits:', updateError);
+            return NextResponse.json({ 
+              error: 'Failed to update credits', 
+              details: updateError.message 
+            }, { status: 500 });
+          }
+          
+          console.log('✅ Credits updated successfully. New balance:', newBalance);
+        } else {
+          // Create new balance
+          console.log('🔍 Creating new credit balance with', creditsToAdd, 'credits');
+          const { error: createError } = await supabase
+            .from('user_credits')
+            .insert({
+              user_id: userId,
+              credits_balance: creditsToAdd
+            });
+
+          if (createError) {
+            console.error('❌ Error creating user credits:', createError);
+            return NextResponse.json({ 
+              error: 'Failed to create credits', 
+              details: createError.message 
+            }, { status: 500 });
+          }
+          
+          console.log('✅ New credits record created successfully with balance:', creditsToAdd);
+        }
+
+        return NextResponse.json({ 
+          success: true,
+          message: 'Transaction processed successfully',
+          user_id: userId,
+          credits_added: creditsToAdd,
+          package: packageName
+        });
+      } catch (dbError) {
+        console.error('❌ Unexpected database error:', dbError);
+        return NextResponse.json({ 
+          error: 'Database operation failed', 
+          message: dbError instanceof Error ? dbError.message : 'Unknown database error'
+        }, { status: 500 });
+      }
     } 
     // Handle transaction.updated event
     else if (eventType === 'transaction.updated') {
