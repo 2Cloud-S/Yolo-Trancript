@@ -58,7 +58,7 @@ class PaddleWebhookVerifier {
         return { isValid: false, body: null };
       }
 
-      // Extract the raw body text
+      // Getting the raw body directly as text without any processing
       const rawBody = await request.text();
       console.log('🔍 Raw body length:', rawBody.length);
       
@@ -76,7 +76,7 @@ class PaddleWebhookVerifier {
       
       const [_, timestamp, hash] = matches;
       
-      // Compute the HMAC
+      // Compute the HMAC using the raw body as Paddle sent it
       const hmac = crypto.createHmac('sha256', this.secret);
       const data = `${timestamp}:${rawBody}`;
       const computedHash = hmac.update(data).digest('hex');
@@ -87,7 +87,7 @@ class PaddleWebhookVerifier {
       
       const isValid = computedHash === hash;
       
-      // Parse the body as JSON
+      // Parse the body as JSON only after validation
       let parsedBody = null;
       try {
         parsedBody = JSON.parse(rawBody);
@@ -114,6 +114,9 @@ export async function POST(req: NextRequest) {
   console.log('🔍 Request URL:', req.url);
   
   try {
+    // Clone the request to preserve it for potential emergency fallback
+    const reqClone = req.clone();
+    
     // Get webhook secret
     const webhookSecret = process.env.PADDLE_NOTIFICATION_WEBHOOK_SECRET || '';
     console.log('🔍 Webhook secret present:', !!webhookSecret);
@@ -131,7 +134,7 @@ export async function POST(req: NextRequest) {
       }
       
       // Empty body check (for curl tests)
-      const rawText = await req.clone().text();
+      const rawText = await reqClone.text();
       if (!rawText || rawText.trim() === '') {
         console.log('ℹ️ Empty request body received - likely a test call');
         return NextResponse.json({ message: 'Webhook endpoint is working, but no data was provided.' });
@@ -181,6 +184,14 @@ export async function POST(req: NextRequest) {
       
       // More comprehensive email extraction attempt
       console.log('🔍 Attempting to extract customer email from various locations in payload');
+
+      // Direct check for Paddle V2 checkout data (as seen in the error message)
+      if (transactionData.customer_id) {
+        // If we have a customer_id, try to use Paddle API to fetch customer details
+        // (this would require additional implementation with Paddle API)
+        console.log('✅ Found customer_id in transactionData:', transactionData.customer_id);
+        // For now, we'll continue with other extraction methods
+      }
       
       // Common paths for customer email
       if (transactionData.customer && transactionData.customer.email) {
@@ -216,7 +227,11 @@ export async function POST(req: NextRequest) {
         
         // Check for email in items array if present
         if (!customerEmail && transactionData.items && Array.isArray(transactionData.items)) {
+          console.log('🔍 Checking items array for customer email');
           for (const item of transactionData.items) {
+            // Log the item structure for debugging
+            console.log('🔍 Item structure:', JSON.stringify(item));
+            
             if (item.customer && item.customer.email) {
               customerEmail = item.customer.email;
               console.log('✅ Found email in item.customer.email:', customerEmail);
@@ -234,6 +249,28 @@ export async function POST(req: NextRequest) {
             if (item.price && item.price.customer && item.price.customer.email) {
               customerEmail = item.price.customer.email;
               console.log('✅ Found email in item.price.customer.email:', customerEmail);
+              break;
+            }
+            
+            // Paddle V2 may have checkout data in price properties
+            if (item.price && item.price.metadata && item.price.metadata.customer_email) {
+              customerEmail = item.price.metadata.customer_email;
+              console.log('✅ Found email in item.price.metadata.customer_email:', customerEmail);
+              break;
+            }
+            
+            // Look in price.product path as well
+            if (item.price && item.price.product && item.price.product.metadata && 
+                item.price.product.metadata.customer_email) {
+              customerEmail = item.price.product.metadata.customer_email;
+              console.log('✅ Found email in item.price.product.metadata.customer_email:', customerEmail);
+              break;
+            }
+            
+            // Check for a buyer field that might contain email
+            if (item.buyer && item.buyer.email) {
+              customerEmail = item.buyer.email;
+              console.log('✅ Found email in item.buyer.email:', customerEmail);
               break;
             }
           }
@@ -291,6 +328,31 @@ export async function POST(req: NextRequest) {
           console.error('❌ Error during emergency email extraction:', error);
         }
         
+        // Extra fallback for Paddle V2: get transaction details through API
+        if (!customerEmail && transactionData.id) {
+          // This would be the place to make a direct API call to Paddle API
+          // to fetch transaction details including customer email
+          console.log('⚠️ Potential fallback: Fetch customer details from Paddle API for transaction ID:', transactionData.id);
+          
+          // For now, we'll just attempt one more regex approach
+          try {
+            // Get the raw request text again to look for email patterns
+            const rawString = JSON.stringify(body);
+            console.log('🔍 Searching raw webhook body for email pattern');
+            
+            // Try to find any email-like pattern in the payload
+            const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+            const emailMatch = rawString.match(emailRegex);
+            
+            if (emailMatch && emailMatch[0]) {
+              customerEmail = emailMatch[0];
+              console.log('✅ Found email using regex pattern match:', customerEmail);
+            }
+          } catch (error) {
+            console.error('❌ Error during final email extraction attempt:', error);
+          }
+        }
+        
         // Check if we can fallback to a default test user for development
         if (!customerEmail && process.env.NODE_ENV === 'development' && process.env.TEST_USER_EMAIL) {
           console.log('⚠️ Using test user email as fallback in development mode');
@@ -330,13 +392,131 @@ export async function POST(req: NextRequest) {
       const lineItems = transactionData.items || [];
       if (lineItems.length === 0) {
         console.error('❌ No line items found');
+        // Try to extract information directly from the transaction
+        
+        // Check if we have product info directly on the transaction
+        if (transactionData.product_id) {
+          console.log('🔍 Found product_id directly on transaction:', transactionData.product_id);
+          
+          // Try to determine package from product_id
+          if (typeof transactionData.product_id === 'string' && transactionData.product_id.includes('_')) {
+            const parts = transactionData.product_id.split('_');
+            packageName = parts[parts.length - 1].charAt(0).toUpperCase() + parts[parts.length - 1].slice(1);
+            console.log('✅ Extracted package name from transaction product_id:', packageName);
+            
+            // Extract credits based on the derived package name
+            creditsToAdd = CREDIT_PACKAGES[packageName as keyof typeof CREDIT_PACKAGES] || 0;
+            if (creditsToAdd > 0) {
+              console.log('✅ Determined credits to add from product_id:', creditsToAdd);
+              
+              // Skip to recording the transaction
+              try {
+                // Record the transaction
+                console.log('🔍 Recording transaction in credit_transactions table');
+                const { error: txError } = await supabase.from('credit_transactions').insert({
+                  user_id: userId,
+                  paddle_transaction_id: transactionData.id,
+                  amount: transactionData.amount || 0,
+                  currency: transactionData.currency_code || 'USD',
+                  status: 'completed',
+                  credits_added: creditsToAdd,
+                  package_name: packageName,
+                  metadata: transactionData
+                });
+
+                if (txError) {
+                  console.error('❌ Error recording transaction:', txError);
+                  return NextResponse.json({ 
+                    error: 'Failed to record transaction', 
+                    details: txError.message 
+                  }, { status: 500 });
+                }
+
+                console.log('✅ Transaction recorded successfully');
+
+                // Check if user already has a credit balance
+                console.log('🔍 Checking if user has existing credit balance');
+                const { data: userCredits, error: creditsError } = await supabase
+                  .from('user_credits')
+                  .select('id, credits_balance')
+                  .eq('user_id', userId)
+                  .single();
+
+                if (creditsError && creditsError.code !== 'PGRST116') { // Not found error
+                  console.error('❌ Error checking user credits:', creditsError);
+                  return NextResponse.json({ 
+                    error: 'Failed to check user credits', 
+                    details: creditsError.message 
+                  }, { status: 500 });
+                }
+
+                // Update or create user credits
+                if (userCredits) {
+                  // Update existing balance
+                  const newBalance = userCredits.credits_balance + creditsToAdd;
+                  console.log('🔍 Updating existing credit balance from', userCredits.credits_balance, 'to', newBalance);
+                  const { error: updateError } = await supabase
+                    .from('user_credits')
+                    .update({
+                      credits_balance: newBalance,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', userCredits.id);
+
+                  if (updateError) {
+                    console.error('❌ Error updating user credits:', updateError);
+                    return NextResponse.json({ 
+                      error: 'Failed to update credits', 
+                      details: updateError.message 
+                    }, { status: 500 });
+                  }
+                  
+                  console.log('✅ Credits updated successfully. New balance:', newBalance);
+                } else {
+                  // Create new balance
+                  console.log('🔍 Creating new credit balance with', creditsToAdd, 'credits');
+                  const { error: createError } = await supabase
+                    .from('user_credits')
+                    .insert({
+                      user_id: userId,
+                      credits_balance: creditsToAdd
+                    });
+
+                  if (createError) {
+                    console.error('❌ Error creating user credits:', createError);
+                    return NextResponse.json({ 
+                      error: 'Failed to create credits', 
+                      details: createError.message 
+                    }, { status: 500 });
+                  }
+                  
+                  console.log('✅ New credits record created successfully with balance:', creditsToAdd);
+                }
+
+                return NextResponse.json({ 
+                  success: true,
+                  message: 'Transaction processed successfully with fallback method',
+                  credits_added: creditsToAdd
+                });
+              } catch (dbError) {
+                console.error('❌ Database error:', dbError);
+                return NextResponse.json({ error: 'Database error' }, { status: 500 });
+              }
+            }
+          }
+        }
+        
+        // If we still can't determine the package, return an error
         return NextResponse.json({ error: 'No line items found' }, { status: 400 });
       }
-
+      
       console.log('🔍 Processing line items:', JSON.stringify(lineItems));
       
       // Try to extract product name from the first item
       const firstItem = lineItems[0];
+      
+      // Debug log the first item structure
+      console.log('🔍 First item structure:', JSON.stringify(firstItem));
       
       // More robust package name extraction
       if (firstItem.product && firstItem.product.name) {
@@ -411,6 +591,11 @@ export async function POST(req: NextRequest) {
         console.error('❌ Invalid credit package or package not found:', packageName);
         console.log('🔍 Available packages:', Object.keys(CREDIT_PACKAGES).join(', '));
         
+        // Log normalized package name for debugging
+        const normalizedPackageName = packageName.toLowerCase().trim();
+        console.log('🔍 Normalized package name:', normalizedPackageName);
+        console.log('🔍 All package keys (lowercase):', Object.keys(CREDIT_PACKAGES).map(k => k.toLowerCase()).join(', '));
+        
         // Try to match package name partially
         const possibleMatch = Object.keys(CREDIT_PACKAGES).find(
           key => packageName.toLowerCase().includes(key.toLowerCase()) || 
@@ -461,18 +646,18 @@ export async function POST(req: NextRequest) {
       // Record the transaction
       console.log('🔍 Recording transaction in credit_transactions table');
       try {
-      const { error: txError } = await supabase.from('credit_transactions').insert({
+        const { error: txError } = await supabase.from('credit_transactions').insert({
           user_id: userId,
           paddle_transaction_id: transactionData.id,
           amount: transactionData.amount || 0,
           currency: transactionData.currency_code || 'USD',
-        status: 'completed',
-        credits_added: creditsToAdd,
-        package_name: packageName,
+          status: 'completed',
+          credits_added: creditsToAdd,
+          package_name: packageName,
           metadata: transactionData
-      });
+        });
 
-      if (txError) {
+        if (txError) {
           console.error('❌ Error recording transaction:', txError);
           return NextResponse.json({ 
             error: 'Failed to record transaction', 
@@ -482,36 +667,36 @@ export async function POST(req: NextRequest) {
 
         console.log('✅ Transaction recorded successfully');
 
-      // Check if user already has a credit balance
+        // Check if user already has a credit balance
         console.log('🔍 Checking if user has existing credit balance');
-      const { data: userCredits, error: creditsError } = await supabase
-        .from('user_credits')
-        .select('id, credits_balance')
+        const { data: userCredits, error: creditsError } = await supabase
+          .from('user_credits')
+          .select('id, credits_balance')
           .eq('user_id', userId)
-        .single();
+          .single();
 
-      if (creditsError && creditsError.code !== 'PGRST116') { // Not found error
+        if (creditsError && creditsError.code !== 'PGRST116') { // Not found error
           console.error('❌ Error checking user credits:', creditsError);
           return NextResponse.json({ 
             error: 'Failed to check user credits', 
             details: creditsError.message 
           }, { status: 500 });
-      }
+        }
 
-      // Update or create user credits
-      if (userCredits) {
-        // Update existing balance
+        // Update or create user credits
+        if (userCredits) {
+          // Update existing balance
           const newBalance = userCredits.credits_balance + creditsToAdd;
           console.log('🔍 Updating existing credit balance from', userCredits.credits_balance, 'to', newBalance);
-        const { error: updateError } = await supabase
-          .from('user_credits')
-          .update({
+          const { error: updateError } = await supabase
+            .from('user_credits')
+            .update({
               credits_balance: newBalance,
               updated_at: new Date().toISOString()
-          })
-          .eq('id', userCredits.id);
+            })
+            .eq('id', userCredits.id);
 
-        if (updateError) {
+          if (updateError) {
             console.error('❌ Error updating user credits:', updateError);
             return NextResponse.json({ 
               error: 'Failed to update credits', 
@@ -520,17 +705,17 @@ export async function POST(req: NextRequest) {
           }
           
           console.log('✅ Credits updated successfully. New balance:', newBalance);
-      } else {
-        // Create new balance
+        } else {
+          // Create new balance
           console.log('🔍 Creating new credit balance with', creditsToAdd, 'credits');
-        const { error: createError } = await supabase
-          .from('user_credits')
-          .insert({
+          const { error: createError } = await supabase
+            .from('user_credits')
+            .insert({
               user_id: userId,
-            credits_balance: creditsToAdd
-          });
+              credits_balance: creditsToAdd
+            });
 
-        if (createError) {
+          if (createError) {
             console.error('❌ Error creating user credits:', createError);
             return NextResponse.json({ 
               error: 'Failed to create credits', 
