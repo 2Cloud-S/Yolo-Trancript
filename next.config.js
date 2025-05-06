@@ -8,6 +8,9 @@ const nextConfig = {
   // Skip trailing slash redirects to prevent 308 redirects
   skipTrailingSlashRedirect: true,
   
+  // Increase static page generation timeout to 180 seconds (3 minutes)
+  staticPageGenerationTimeout: 180,
+  
   // Define explicit rewrites to handle both webhook URL patterns
   async rewrites() {
     return [

@@ -8,9 +8,7 @@ import { createClient } from '@/lib/supabase/server';
 // Calculate credits needed based on audio duration (in seconds)
 function calculateCreditsNeeded(durationInSeconds: number): number {
   // 1 credit = 6 minutes (360 seconds) of audio
-  const creditsPerMinute = 1 / 6; 
-  const durationInMinutes = durationInSeconds / 60;
-  const creditsNeeded = Math.ceil(durationInMinutes * creditsPerMinute);
+  const creditsNeeded = Math.ceil(durationInSeconds / 360);
   
   // Minimum 1 credit
   return Math.max(1, creditsNeeded);
@@ -60,13 +58,16 @@ export async function GET() {
           return NextResponse.json({ error: 'Failed to initialize credits' }, { status: 500 });
         }
         
+        // Return explicitly structured object with 0 credits
         return NextResponse.json({ credits_balance: 0 });
       }
       
       return NextResponse.json({ error: 'Failed to fetch credits' }, { status: 500 });
     }
     
-    return NextResponse.json(data);
+    // Ensure credits_balance is a number, defaulting to 0 if null/undefined
+    const credits_balance = typeof data.credits_balance === 'number' ? data.credits_balance : 0;
+    return NextResponse.json({ credits_balance });
   } catch (error) {
     console.error("Exception in credits API:", error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

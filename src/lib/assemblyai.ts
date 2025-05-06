@@ -1,15 +1,28 @@
+import { supabase } from '@/lib/supabase/client';
+
 // Helper function to get AssemblyAI token
 export async function getAssemblyToken(): Promise<string> {
-  const response = await fetch('/api/assemblyToken', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    cache: 'no-store',
-  });
-  
-  const responseBody = await response.json();
-  return responseBody.token;
+  try {
+    const response = await fetch('/api/assemblyToken', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      cache: 'no-store',
+      credentials: 'include', // Include auth cookies
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || `Failed to get AssemblyAI token: ${response.status}`);
+    }
+    
+    const responseBody = await response.json();
+    return responseBody.token;
+  } catch (error) {
+    console.error('Error getting AssemblyAI token:', error);
+    throw error;
+  }
 }
 
 // Types for diarization options
@@ -26,6 +39,37 @@ export interface TranscriptionOptions {
   enableSentiment?: boolean;
 }
 
+// Helper function to get audio duration
+async function getFileDuration(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    // For audio and video files
+    if (file.type.startsWith('audio/') || file.type.startsWith('video/')) {
+      const element = file.type.startsWith('audio/') 
+        ? document.createElement('audio') 
+        : document.createElement('video');
+      
+      element.preload = 'metadata';
+      
+      element.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(element.src);
+        resolve(Math.round(element.duration));
+      };
+      
+      element.onerror = () => {
+        reject(new Error('Failed to load file metadata'));
+      };
+      
+      element.src = URL.createObjectURL(file);
+    } else {
+      // Default to an estimate based on file size for unsupported files
+      // Rough estimate: 1MB ≈ 1 minute of audio at normal quality
+      const sizeMB = file.size / (1024 * 1024);
+      const estimatedDuration = Math.round(sizeMB * 60); // in seconds
+      resolve(estimatedDuration);
+    }
+  });
+}
+
 // Function to transcribe a file using AssemblyAI
 export async function transcribeFile(
   file: File, 
@@ -34,41 +78,100 @@ export async function transcribeFile(
   transcriptId: string, 
   status: string 
 }> {
-  // Get presigned URL
-  const formData = new FormData();
-  formData.append('file', file);
-  
-  const uploadResponse = await fetch('/api/upload', {
-    method: 'POST',
-    body: formData,
-  });
-  
-  const { url } = await uploadResponse.json();
-  
-  // Send transcription request with options
-  const transcribeResponse = await fetch('/api/transcribe', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ 
-      audio_url: url,
-      diarization_options: options?.diarization ? {
-        speakers_expected: options.diarization.speakers_expected || 2
-      } : undefined,
-      custom_vocabulary: options?.customVocabulary || [],
-      sentiment_analysis: options?.enableSentiment || true
-    }),
-  });
-  
-  // Log error response if present
-  if (!transcribeResponse.ok) {
-    const errorData = await transcribeResponse.json();
-    console.error('Transcribe API error:', errorData);
-    throw new Error(`Transcription failed: ${errorData.error || 'Unknown error'}`);
+  try {
+    // Get the current user ID from Supabase
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id;
+    
+    if (!userId) {
+      throw new Error('User not authenticated. Please log in again.');
+    }
+    
+    // Get the file duration
+    const duration = await getFileDuration(file);
+    console.log(`File duration determined: ${duration} seconds`);
+    
+    // Upload file directly to AssemblyAI using our API endpoint
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const uploadResponse = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+      credentials: 'include', // Include credentials for auth cookies
+    });
+    
+    if (!uploadResponse.ok) {
+      let errorText = 'Failed to upload file';
+      try {
+        const errorData = await uploadResponse.json();
+        errorText = errorData.error || errorText;
+      } catch (jsonError) {
+        console.error('Failed to parse error response:', jsonError);
+      }
+      throw new Error(errorText);
+    }
+    
+    const uploadResult = await uploadResponse.json();
+    const { url, fileName } = uploadResult;
+    
+    if (!url) {
+      throw new Error('Failed to get upload URL');
+    }
+    
+    console.log('Upload successful to AssemblyAI:', { url, fileName });
+    
+    // Send transcription request with options AND user_id
+    const transcribeResponse = await fetch('/api/transcribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        audio_url: url, // This is now an AssemblyAI URL
+        user_id: userId, // Include user ID explicitly
+        file_name: fileName || file.name, // Pass the filename for the record
+        file_size: file.size,
+        file_type: file.type,
+        duration_seconds: duration, // Include duration for credit calculation
+        diarization_options: options?.diarization ? {
+          speakers_expected: options.diarization.speakers_expected
+        } : undefined,
+        custom_vocabulary: options?.customVocabulary || [],
+        sentiment_analysis: options?.enableSentiment || true
+      }),
+      credentials: 'include', // Include credentials for auth cookies
+    });
+    
+    // Handle non-OK responses
+    if (!transcribeResponse.ok) {
+      let errorMessage = `Transcription failed: Status ${transcribeResponse.status}`;
+      
+      try {
+        const errorData = await transcribeResponse.json();
+        
+        if (transcribeResponse.status === 401) {
+          throw new Error('Authentication required: Your session has expired. Please log in again.');
+        }
+        
+        if (transcribeResponse.status === 403) {
+          throw new Error('Insufficient credits. Please purchase more credits to continue.');
+        }
+        
+        errorMessage = `Transcription failed: ${errorData.error || 'Unknown error'}`;
+      } catch (jsonError) {
+        console.error('Failed to parse error response:', jsonError);
+      }
+      
+      throw new Error(errorMessage);
+    }
+    
+    const result = await transcribeResponse.json();
+    return result;
+  } catch (error) {
+    console.error('Transcription error:', error);
+    throw error; // Re-throw to be handled by the component
   }
-  
-  return transcribeResponse.json();
 }
 
 // Function to get transcription result
@@ -166,4 +269,102 @@ export function extractSpeakers(transcript: any): {
     speakerCount: speakerMap.size,
     speakers: Array.from(speakerMap.values())
   };
+}
+
+// Function to check and update the status of a transcription
+export async function checkTranscriptionStatus(transcriptId: string): Promise<{
+  isCompleted: boolean;
+  text?: string;
+  status: string;
+}> {
+  try {
+    // Fetch status directly from AssemblyAI API
+    const response = await fetch(`/api/transcription/${transcriptId}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get transcription status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const isCompleted = data.status === 'completed';
+    
+    // If completed, update local database if needed
+    if (isCompleted) {
+      // First check if we already have a completed transcription with this transcript_id
+      const { data: existingCompleted, error: checkError } = await supabase
+        .from('transcriptions')
+        .select('id')
+        .eq('transcript_id', transcriptId)
+        .eq('status', 'completed')
+        .limit(1);
+        
+      if (checkError) {
+        console.error('Error checking for existing completed transcription:', checkError);
+      } else if (existingCompleted && existingCompleted.length > 0) {
+        // We already have a completed transcription with this ID
+        console.log('Already have a completed transcription for:', transcriptId);
+        
+        // Look for processing duplicates that should be deleted
+        const { data: processingDuplicates, error: dupError } = await supabase
+          .from('transcriptions')
+          .select('id')
+          .eq('transcript_id', transcriptId)
+          .eq('status', 'processing');
+          
+        if (!dupError && processingDuplicates && processingDuplicates.length > 0) {
+          console.log(`Found ${processingDuplicates.length} processing duplicates for completed transcript, cleaning up`);
+          
+          // Delete the duplicates
+          for (const dup of processingDuplicates) {
+            await supabase
+              .from('transcriptions')
+              .delete()
+              .eq('id', dup.id);
+          }
+        }
+        
+        return {
+          isCompleted: true,
+          text: data.text,
+          status: 'completed'
+        };
+      }
+      
+      // Find processing transcriptions to update
+      const { data: transcriptions, error: findError } = await supabase
+        .from('transcriptions')
+        .select('id, status')
+        .eq('transcript_id', transcriptId)
+        .eq('status', 'processing') // Only get processing transcripts
+        .limit(1);
+        
+      if (findError) {
+        console.error('Error finding transcription to update:', findError);
+      } else if (transcriptions && transcriptions.length > 0) {
+        // Update the transcription status in the database
+        const { error: updateError } = await supabase
+          .from('transcriptions')
+          .update({ 
+            status: 'completed',
+            transcription_text: data.text || ''
+          })
+          .eq('id', transcriptions[0].id);
+          
+        if (updateError) {
+          console.error('Error updating transcription status:', updateError);
+        } else {
+          console.log('Updated transcription status to completed:', transcriptId);
+        }
+      }
+    }
+    
+    return {
+      isCompleted,
+      text: data.text,
+      status: data.status
+    };
+  } catch (error) {
+    console.error('Error checking transcription status:', error);
+    return { isCompleted: false, status: 'error' };
+  }
 } 

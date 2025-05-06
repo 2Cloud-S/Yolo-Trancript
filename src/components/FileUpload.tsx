@@ -3,11 +3,10 @@
 import { useCallback, useState, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, AlertCircle, Users, Book, MessageSquare, ArrowRight } from 'lucide-react';
-import { transcribeFile, TranscriptionOptions, DiarizationOptions } from '@/lib/assemblyai';
-import { saveTranscript } from '@/lib/supabase';
-import { supabase } from '@/lib/supabase';
+import { transcribeFile, TranscriptionOptions, DiarizationOptions, checkTranscriptionStatus } from '@/lib/assemblyai';
+import { saveTranscript, getCustomVocabularies, getDefaultVocabulary } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/client';
 import Dropdown from './ui/Dropdown';
-import { getCustomVocabularies, getDefaultVocabulary } from '@/lib/supabase';
 import { CustomVocabulary } from '@/types/transcription';
 import CustomVocabularyManager from './CustomVocabularyManager';
 import Link from 'next/link';
@@ -165,6 +164,74 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
       setError(null);
       startProgressSimulation();
       
+      // Comprehensive session check
+      try {
+        // First verify if we have an active session
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError || !sessionData.session) {
+          console.error('Session check error:', sessionError);
+          // Try to refresh the session
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          
+          if (refreshError || !refreshData.session) {
+            setError('Your session has expired. Please refresh the page or log in again.');
+            stopProgressSimulation();
+            setUploading(false);
+            return;
+          }
+        }
+        
+        // Finally verify with getUser which validates the token
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !user) {
+          throw new Error(userError?.message || 'User not authenticated');
+        }
+      } catch (authError) {
+        console.error('Authentication verification error:', authError);
+        setError('Authentication error. Please log out and log in again.');
+        stopProgressSimulation();
+        setUploading(false);
+        return;
+      }
+      
+      // Check auth status and credits using the API
+      const authResponse = await fetch('/api/auth/status');
+      
+      if (!authResponse.ok) {
+        const authData = await authResponse.json();
+        
+        // Handle specific error codes
+        if (authResponse.status === 401) {
+          if (authData.code === 'session_expired') {
+            setError('Your session has expired. Please log in again.');
+          } else {
+            setError(authData.error || 'Please log in to transcribe files.');
+          }
+          stopProgressSimulation();
+          setUploading(false);
+          return;
+        }
+        
+        if (authResponse.status === 403) {
+          setError('Insufficient credits. Please purchase more credits to continue.');
+          stopProgressSimulation();
+          setUploading(false);
+          return;
+        }
+        
+        throw new Error(authData.error || 'Authentication check failed');
+      }
+      
+      const authData = await authResponse.json();
+      if (!authData.hasCredits) {
+        setError(`Insufficient credits. You have ${authData.credits} credits available. Please purchase more credits to continue.`);
+        stopProgressSimulation();
+        setUploading(false);
+        return;
+      }
+      
       // Prepare transcription options
       const options: TranscriptionOptions = {
         diarization: {
@@ -181,25 +248,17 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
       }
       
       // Send file for transcription
-      const { transcriptId, status } = await transcribeFile(file, options);
+      const response = await transcribeFile(file, options);
       
-      // Save transcript info to database
-      await saveTranscript({
-        user_id: userId,
-        file_name: file.name,
-        file_type: file.type,
-        file_size: file.size,
-        transcript_id: transcriptId,
-        status,
-        metadata: {
-          original_name: file.name,
-          mime_type: file.type,
-          last_modified: file.lastModified,
-          diarization_options: options.diarization,
-          customVocabularyId: selectedVocabulary?.id,
-          enableSentiment
-        }
-      });
+      const { transcriptId, status } = response;
+      
+      // When upload is successful, schedule status checks
+      if (response && response.transcriptId) {
+        // Set a few status checks after upload completes
+        setTimeout(() => checkAndUpdateStatus(response.transcriptId), 20000); // Check after 20 seconds
+        setTimeout(() => checkAndUpdateStatus(response.transcriptId), 60000); // Check after 1 minute
+        setTimeout(() => checkAndUpdateStatus(response.transcriptId), 180000); // Check after 3 minutes
+      }
       
       // Reset the file input
       setFile(null);
@@ -215,6 +274,19 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
       setUploading(false);
       stopProgressSimulation();
       setUploadProgress(0);
+    }
+  };
+
+  // Function to check and update transcription status
+  const checkAndUpdateStatus = async (transcriptId: string) => {
+    try {
+      const result = await checkTranscriptionStatus(transcriptId);
+      
+      if (result.isCompleted && onUploadComplete) {
+        onUploadComplete(); // Trigger parent component refresh
+      }
+    } catch (error) {
+      console.error('Error checking transcription status:', error);
     }
   };
 

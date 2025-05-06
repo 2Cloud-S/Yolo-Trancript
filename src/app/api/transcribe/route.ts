@@ -1,121 +1,228 @@
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { AssemblyAI } from 'assemblyai';
-import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-import { Database } from '@/types/supabase';
-import { logCreditUsage } from '@/lib/supabase/admin-client';
 
-// Define interface for transcription options
-interface TranscriptionOptions {
-  audio: string;
-  language_code: string;
-  punctuate: boolean;
-  format_text: boolean;
-  speaker_labels: boolean;
-  speakers_expected?: number;
-  word_boost?: string[];
-  boost_param?: "low" | "default" | "high";
-  sentiment_analysis?: boolean;
-}
+// Create a Supabase admin client with service role key
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
-// Calculate credits needed based on audio duration
+// Initialize AssemblyAI client
+const assemblyai = new AssemblyAI({
+  apiKey: process.env.ASSEMBLY_API_KEY!
+});
+
+// Calculate credits needed based on audio duration (in seconds)
 function calculateCreditsNeeded(durationInSeconds: number): number {
-  return Math.ceil(durationInSeconds / 360); // 1 credit = 6 minutes (360 seconds)
+  // 1 credit = 6 minutes (360 seconds) of audio
+  const creditsNeeded = Math.ceil(durationInSeconds / 360);
+  
+  // Minimum 1 credit
+  return Math.max(1, creditsNeeded);
 }
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-export async function POST(request: Request) {
-  const supabase = createRouteHandlerClient<Database>({ cookies });
-  
-  // Check authentication
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-  }
-  
+// Check transcription status and update database when completed
+async function scheduleTranscriptionStatusCheck(transcriptId: string, dbRecordId: string) {
   try {
-    // Get form data from request
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
+    // First check: Wait 20 seconds before first status check
+    setTimeout(async () => {
+      await checkTranscriptionStatus(transcriptId, dbRecordId);
+    }, 20000);
     
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-    }
+    // Second check: If not completed after 1 minute, check again
+    setTimeout(async () => {
+      await checkTranscriptionStatus(transcriptId, dbRecordId);
+    }, 60000);
     
-    // Get file duration from request header or calculate it
-    const duration = file.size > 0 ? Math.ceil(file.size / (16000 * 2)) : 0; // Rough estimate if not provided
+    // Third check: If still not completed after 3 minutes, check again
+    setTimeout(async () => {
+      await checkTranscriptionStatus(transcriptId, dbRecordId);
+    }, 180000);
     
-    // Check if the user has enough credits
-    const creditsNeeded = calculateCreditsNeeded(duration);
-    
-    const { data: creditData, error: creditError } = await supabase
-      .from('user_credit_summary')
-      .select('credits_balance')
-      .eq('user_id', session.user.id)
+    console.log(`Scheduled status checks for transcript: ${transcriptId}`);
+  } catch (error) {
+    console.error(`Error scheduling checks for ${transcriptId}:`, error);
+  }
+}
+
+// Function to check transcription status and update database
+async function checkTranscriptionStatus(transcriptId: string, dbRecordId: string) {
+  try {
+    // Get current status from database first
+    const { data: transcriptionRecord, error: dbError } = await supabaseAdmin
+      .from('transcriptions')
+      .select('status, metadata')
+      .eq('id', dbRecordId)
       .single();
     
-    if (creditError && creditError.code !== 'PGRST116') {
-      console.error('Error checking credits:', creditError);
-      return NextResponse.json({ error: 'Failed to check credits' }, { status: 500 });
+    // If already completed or error fetching, stop checking
+    if (dbError || !transcriptionRecord || transcriptionRecord.status === 'completed') {
+      return;
     }
     
-    const creditsBalance = creditData?.credits_balance || 0;
+    // Check status with AssemblyAI
+    const transcript = await assemblyai.transcripts.get(transcriptId);
     
-    if (creditsBalance < creditsNeeded) {
-      return NextResponse.json({ 
-        error: 'Insufficient credits', 
-        creditsNeeded,
-        creditsBalance
-      }, { status: 403 });
+    // If status is now completed, update in database
+    if (transcript.status === 'completed') {
+      await supabaseAdmin
+        .from('transcriptions')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          transcription_text: transcript.text || '',
+          duration: transcript.audio_duration || 0,
+          metadata: {
+            ...(transcriptionRecord.metadata || {}),
+            utterances: transcript.utterances?.length || 0,
+            words: transcript.words?.length || 0,
+            speakers: transcript.utterances 
+              ? [...new Set(transcript.utterances.map(u => u.speaker))].length 
+              : 0
+          }
+        })
+        .eq('id', dbRecordId);
+      
+      console.log(`Updated transcription status to completed for ${transcriptId}`);
+    }
+  } catch (error) {
+    console.error(`Error checking transcript status for ${transcriptId}:`, error);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    // Parse the request JSON
+    const requestData = await request.json();
+    const { 
+      audio_url, 
+      diarization_options, 
+      custom_vocabulary, 
+      sentiment_analysis, 
+      user_id,
+      file_name,
+      file_size,
+      file_type,
+      duration_seconds
+    } = requestData;
+    
+    if (!audio_url) {
+      return NextResponse.json({ error: 'Missing audio URL' }, { status: 400 });
     }
     
-    // Create a new transcription record
-    const { data: transcription, error } = await supabase
+    if (!user_id) {
+      return NextResponse.json({ error: 'Missing user ID' }, { status: 400 });
+    }
+
+    if (!duration_seconds || isNaN(Number(duration_seconds))) {
+      return NextResponse.json({ error: 'Missing or invalid duration' }, { status: 400 });
+    }
+    
+    // Calculate credits needed based on duration
+    const creditsNeeded = calculateCreditsNeeded(Number(duration_seconds));
+    
+    // Verify user has credits directly with the admin client
+    const { data: credits, error: creditsError } = await supabaseAdmin
+      .from('user_credits')
+      .select('credits_balance')
+      .eq('user_id', user_id)
+      .single();
+    
+    if (creditsError) {
+      console.error('Failed to fetch user credits:', creditsError);
+      return NextResponse.json(
+        { error: 'Error checking user credits' },
+        { status: 500 }
+      );
+    }
+    
+    if (!credits || credits.credits_balance < creditsNeeded) {
+      return NextResponse.json(
+        { error: `Insufficient credits. You need ${creditsNeeded} credits for this transcription.` },
+        { status: 403 }
+      );
+    }
+
+    // Create the transcription options
+    const transcriptOptions: any = {
+      audio: audio_url, // Use the AssemblyAI upload URL directly
+      speaker_labels: Boolean(diarization_options),
+    };
+    
+    // Add optional parameters if provided
+    if (diarization_options?.speakers_expected) {
+      transcriptOptions.speakers_expected = diarization_options.speakers_expected;
+    }
+    
+    if (custom_vocabulary && custom_vocabulary.length > 0) {
+      transcriptOptions.word_boost = custom_vocabulary;
+    }
+    
+    if (sentiment_analysis) {
+      transcriptOptions.sentiment_analysis = true;
+    }
+    
+    // Start the transcription using the AssemblyAI URL directly
+    const transcript = await assemblyai.transcripts.transcribe(transcriptOptions);
+    
+    // Create a record in the database, but don't store the actual file
+    const { data: transcription, error: dbError } = await supabaseAdmin
       .from('transcriptions')
       .insert({
-        user_id: session.user.id,
-        title: file.name,
+        user_id: user_id,
+        transcript_id: transcript.id,
         status: 'processing',
-        duration_seconds: duration,
+        file_name: file_name || `transcript_${transcript.id}.json`,
+        file_size: file_size || 0,
+        file_type: file_type || 'audio/mpeg',
+        metadata: {
+          diarization_options,
+          custom_vocabulary,
+          sentiment_analysis,
+          duration_seconds,
+          credits_used: creditsNeeded,
+          direct_upload: true // Flag to indicate this was a direct upload
+        }
       })
       .select()
       .single();
     
-    if (error) {
-      console.error('Error creating transcription:', error);
-      return NextResponse.json({ error: 'Failed to create transcription' }, { status: 500 });
-    }
-    
-    // Deduct credits for the transcription
-    try {
-      await logCreditUsage(
-        session.user.id, 
-        creditsNeeded, 
-        transcription.id,
-        `Transcription of ${file.name} (${Math.round(duration / 60)} minutes)`
+    if (dbError) {
+      console.error('Failed to create transcription record:', dbError);
+      return NextResponse.json(
+        { error: 'Failed to create transcription record' },
+        { status: 500 }
       );
-    } catch (creditError) {
-      console.error('Error deducting credits:', creditError);
-      // We'll still process the transcription even if credit deduction fails
-      // The credits can be reconciled later if needed
     }
     
-    // Here you would typically upload the file to storage and start the transcription process
-    // For this implementation, we're just returning the transcription ID
+    // Deduct calculated credits from the user
+    const { error: creditUpdateError } = await supabaseAdmin
+      .from('user_credits')
+      .update({
+        credits_balance: credits.credits_balance - creditsNeeded
+      })
+      .eq('user_id', user_id);
     
-    return NextResponse.json({ 
-      success: true, 
-      transcriptionId: transcription.id,
-      creditsUsed: creditsNeeded,
+    if (creditUpdateError) {
+      console.error('Failed to update user credits:', creditUpdateError);
+      // Log but don't fail the request
+    }
+    
+    // Schedule background checks for this transcription
+    scheduleTranscriptionStatusCheck(transcript.id, transcription.id);
+    
+    // Return success response
+    return NextResponse.json({
+      transcriptId: transcript.id,
+      status: 'processing',
+      creditsUsed: creditsNeeded
     });
-    
-  } catch (error) {
+  } catch (error: any) {
     console.error('Transcription error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || 'Transcription failed' },
+      { status: 500 }
+    );
   }
 } 

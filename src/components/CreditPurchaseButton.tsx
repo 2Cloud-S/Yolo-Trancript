@@ -114,8 +114,11 @@ export default function CreditPurchaseButton({
         const { data, error } = await supabase.auth.getUser();
         
         if (error) {
+          // Only log the error but don't show it to the user
+          // Non-authenticated users should be able to see pricing without errors
           logError('Error fetching user:', error);
-          setError('Authentication error. Please log in and try again.');
+          // Don't set error message for unauthenticated users on pricing page
+          // setError('Authentication error. Please log in and try again.');
           return;
         }
         
@@ -126,8 +129,10 @@ export default function CreditPurchaseButton({
           logInfo('No user authenticated for credit purchase');
         }
       } catch (e) {
+        // Only log unexpected errors but don't show them to users on the pricing page
         logError('Unexpected error in fetchUser:', e);
-        setError('Unexpected authentication error. Please refresh and try again.');
+        // Don't set error for general authentication issues on pricing page
+        // setError('Unexpected authentication error. Please refresh and try again.');
       }
     };
     
@@ -180,11 +185,44 @@ export default function CreditPurchaseButton({
       
       // Use the standard checkout with better error handling
       try {
+        // Set a flag to track if we should show errors
+        let shouldShowError = true;
+        
+        // Add event listener for checkout appearing in DOM
+        const checkoutAppeared = () => {
+          shouldShowError = false; // Disable error if checkout appears
+          logInfo('Paddle checkout iframe detected in DOM');
+        };
+        
+        // Check for Paddle checkout iframe at intervals
+        const checkoutDetectionInterval = setInterval(() => {
+          const paddleFrames = document.querySelectorAll('iframe[name^="paddle_frame"]');
+          if (paddleFrames.length > 0) {
+            checkoutAppeared();
+            clearInterval(checkoutDetectionInterval);
+          }
+        }, 500);
+        
+        // Clear detection after 10 seconds regardless
+        setTimeout(() => {
+          clearInterval(checkoutDetectionInterval);
+        }, 10000);
+        
         const result = await openCheckout(priceId, user.email);
       
-      if (!result) {
-        setError('Failed to open checkout. Please try again or contact support.');
-          setDebugInfo('openCheckout returned null or undefined');
+        if (!result) {
+          logInfo('openCheckout returned null or undefined, but checkout may still open');
+          // Don't show error immediately, give checkout iframe time to appear
+          setTimeout(() => {
+            if (shouldShowError) {
+              setError('Failed to open checkout. Please try again or contact support.');
+              setDebugInfo('openCheckout returned null or undefined');
+            } else {
+              // Clear any loading state but don't show error if checkout appeared
+              setIsLoading(false);
+            }
+          }, 3000);
+          return; // Exit early and let the timeout handle errors if needed
         }
       } catch (checkoutError: any) {
         const errorMessage = checkoutError.message || 'Unknown error';
@@ -212,6 +250,9 @@ export default function CreditPurchaseButton({
       logError('Error during checkout process:', error);
       setError(error?.message || 'There was a problem initiating the checkout. Please try again.');
     } finally {
+      // In most cases, we want to set loading to false here
+      // But for the null/undefined result case with delayed error handling,
+      // we've already returned early and the timeout will handle it
       setIsLoading(false);
     }
   };
@@ -232,7 +273,7 @@ export default function CreditPurchaseButton({
             Processing...
           </span>
         ) : (
-          children
+          user ? children : 'Get Started'
         )}
       </button>
       

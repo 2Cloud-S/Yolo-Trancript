@@ -1,35 +1,48 @@
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { AssemblyAI } from 'assemblyai';
-import { NextRequest } from 'next/server';
 
-export async function POST(request: NextRequest) {
+// Create a Supabase admin client with service role key
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+// Initialize AssemblyAI client
+const assemblyai = new AssemblyAI({
+  apiKey: process.env.ASSEMBLY_API_KEY!
+});
+
+export async function POST(request: Request) {
   try {
-    const apiKey = process.env.ASSEMBLY_API_KEY;
-    
-    if (!apiKey) {
-      return Response.json({ error: 'API key not found' }, { status: 500 });
-    }
-
     const formData = await request.formData();
     const file = formData.get('file') as File;
-
+    
     if (!file) {
-      return Response.json({ error: 'No file provided' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'No file provided' },
+        { status: 400 }
+      );
     }
-
-    const assemblyClient = new AssemblyAI({
-      apiKey: apiKey
+    
+    // Get the file as an ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+    const fileBuffer = Buffer.from(arrayBuffer);
+    
+    // Upload directly to AssemblyAI instead of Supabase Storage
+    const uploadUrl = await assemblyai.files.upload(fileBuffer);
+    
+    console.log('File uploaded to AssemblyAI:', uploadUrl);
+    
+    return NextResponse.json({
+      url: uploadUrl,
+      fileName: file.name
     });
-
-    // Get the bytes from the file
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Upload the file to AssemblyAI
-    const uploadUrl = await assemblyClient.files.upload(buffer);
-
-    return Response.json({ url: uploadUrl });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Upload error:', error);
-    return Response.json({ error: 'Failed to upload file' }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || 'Upload failed' },
+      { status: 500 }
+    );
   }
 } 

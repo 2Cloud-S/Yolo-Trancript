@@ -240,8 +240,57 @@ export default function PricingPage() {
           </div>
         </section>
 
+        {/* How Credits Work Section */}
+        <section className="py-12 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-3xl mx-auto">
+              <div className="text-center mb-10">
+                <h2 className="text-3xl font-extrabold text-gray-900 mb-4">How Credits Work</h2>
+                <p className="text-lg max-w-3xl mx-auto text-gray-600">
+                  1 credit = 6 minutes of audio/video transcription. Credits are calculated based on the exact duration of your media.
+                </p>
+              </div>
+              
+              <div className="bg-white shadow-md rounded-lg border-2 border-gray-900 p-6">
+                <ul className="space-y-4">
+                  <li className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                    </div>
+                    <p className="ml-3 text-base text-gray-700">
+                      <strong>10 credits</strong> = 60 minutes of transcription (1 hour)
+                    </p>
+                  </li>
+                  <li className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                    </div>
+                    <p className="ml-3 text-base text-gray-700">
+                      <strong>50 credits</strong> = 300 minutes of transcription (5 hours)
+                    </p>
+                  </li>
+                  <li className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                    </div>
+                    <p className="ml-3 text-base text-gray-700">
+                      <strong>100 credits</strong> = 600 minutes of transcription (10 hours)
+                    </p>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* FAQ */}
-        <section id="faq" className="py-12 bg-white">
+        <section id="faq" className="py-12 bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl mx-auto divide-y-2 divide-gray-200">
               <h2 className="text-3xl font-extrabold text-gray-900 text-center mb-8">

@@ -60,7 +60,8 @@ export default function CreditBalance({ showBuyButton = true, compact = false }:
       
       const data = await response.json();
       console.log("Credits fetched successfully:", data);
-      setCredits(data.credits_balance || 0);
+      // Ensure we handle zero credits as a valid value, not an error
+      setCredits(typeof data.credits_balance === 'number' ? data.credits_balance : 0);
     } catch (err) {
       console.error('Error fetching credits:', err);
       setError('Could not load credit balance');
@@ -126,9 +127,13 @@ export default function CreditBalance({ showBuyButton = true, compact = false }:
           (payload) => {
             console.log("Received credits update:", payload);
             // Type check and safely access the credits_balance
-            if (payload.new && 'credits_balance' in payload.new && 
-                typeof payload.new.credits_balance === 'number') {
-              setCredits(payload.new.credits_balance);
+            if (payload.new && 'credits_balance' in payload.new) {
+              // Ensure we treat 0 as a valid value, not a falsy one that might be ignored
+              const newBalance = typeof payload.new.credits_balance === 'number' 
+                ? payload.new.credits_balance 
+                : 0;
+              setCredits(newBalance);
+              console.log(`Credits updated to ${newBalance}`);
             }
           }
         )

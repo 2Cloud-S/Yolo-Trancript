@@ -85,6 +85,14 @@ export default function FAQPage() {
     {
       question: "What happens if I exceed my monthly transcription limit?",
       answer: "If you reach your plan's monthly limit, you'll need to upgrade to a higher tier plan or wait until your next billing cycle when your transcription minutes reset. We'll notify you when you're approaching your limit."
+    },
+    {
+      question: "How are credits calculated?",
+      answer: "We calculate credits based on the duration of your media. 1 credit equals 6 minutes (360 seconds) of audio or video. For example, a 10-minute video would use 2 credits, and a 30-minute podcast would use 5 credits. We always round up to the nearest credit, with a minimum of 1 credit per transcription."
+    },
+    {
+      question: "Do you charge partial credits for short files?",
+      answer: "No, we always charge a minimum of 1 credit per transcription, even for files shorter than 6 minutes. For files longer than 6 minutes, we calculate credits based on the exact duration using the formula: Math.ceil(durationInSeconds / 360). This means a 6:01 minute file would use 2 credits."
     }
   ];
 

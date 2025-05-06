@@ -1,82 +1,85 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { Database } from '@/types/supabase';
+import { createClient } from '@/lib/supabase/server';
 
 export async function GET() {
   try {
-    // Create a Supabase client
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = await createClient();
     
-    // Get the current session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError) {
-      console.error('Error getting session:', sessionError);
-      return NextResponse.json({ 
-        status: 'error', 
-        error: sessionError.message,
-        authenticated: false
-      }, { status: 500 });
-    }
-    
-    if (!session) {
-      return NextResponse.json({ 
-        status: 'unauthenticated', 
-        authenticated: false,
-        message: 'No active session found'
-      });
-    }
-    
-    // Get user details
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError) {
-      console.error('Error getting user:', userError);
-      return NextResponse.json({ 
-        status: 'error', 
-        error: userError.message,
-        authenticated: session ? true : false
-      }, { status: 500 });
-    }
-    
-    // Try to fetch user credit information as a test
-    const { data: creditData, error: creditError } = await supabase
-      .from('user_credits')
-      .select('credits_balance')
-      .eq('user_id', user?.id)
-      .single();
-    
-    // Get RLS debug info
-    const { data: rlsCheck, error: rlsError } = await supabase.rpc('check_rls_permissions');
-    
-    return NextResponse.json({
-      status: 'authenticated',
-      authenticated: true,
-      user: {
-        id: user?.id,
-        email: user?.email,
-        lastSignIn: user?.last_sign_in_at
-      },
-      session: {
-        expires: session?.expires_at,
-        provider: session?.user?.app_metadata?.provider
-      },
-      credit_check: {
-        data: creditData,
-        error: creditError ? creditError.message : null
-      },
-      rls_check: {
-        data: rlsCheck,
-        error: rlsError ? rlsError.message : null
+    try {
+      // Get the user directly (authenticated session from cookie)
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error) {
+        console.error('Auth status error:', error);
+        return NextResponse.json(
+          { 
+            error: error.message || 'Not authenticated',
+            code: error.code || 'auth_error',
+            authenticated: false 
+          },
+          { status: 401 }
+        );
       }
-    });
+      
+      if (!user) {
+        return NextResponse.json(
+          { error: 'User not found', authenticated: false },
+          { status: 401 }
+        );
+      }
+
+      // Get user credits using the correct column name 'credits_balance'
+      const { data: credits, error: creditsError } = await supabase
+        .from('user_credits')
+        .select('credits_balance')
+        .eq('user_id', user.id)
+        .single();
+
+      if (creditsError) {
+        console.error('Credits fetch error:', creditsError);
+        
+        // Still return authenticated status even if credits can't be fetched
+        return NextResponse.json({
+          userId: user.id,
+          authenticated: true,
+          credits: 0,
+          hasCredits: false
+        });
+      }
+
+      // Return auth data with credits
+      return NextResponse.json({
+        userId: user.id,
+        authenticated: true,
+        hasCredits: credits?.credits_balance > 0,
+        credits: credits?.credits_balance || 0
+      });
+    } catch (authError: any) {
+      console.error('Auth check error details:', authError);
+      
+      // More specific error for auth session missing
+      if (authError.message && authError.message.includes('Auth session missing')) {
+        return NextResponse.json(
+          { 
+            error: 'Your login session has expired. Please log in again.',
+            code: 'session_expired',
+            authenticated: false 
+          }, 
+          { status: 401 }
+        );
+      }
+      
+      throw authError; // Re-throw for the outer catch
+    }
   } catch (error: any) {
-    console.error('Unexpected error checking auth status:', error);
-    return NextResponse.json({ 
-      status: 'error', 
-      error: error.message || 'Unexpected error',
-      authenticated: false 
-    }, { status: 500 });
+    console.error('Auth status check failed:', error);
+    return NextResponse.json(
+      { 
+        error: error?.message || 'Internal server error', 
+        authenticated: false,
+        code: error?.code || 'server_error'
+      },
+      { status: 500 }
+    );
   }
 } 

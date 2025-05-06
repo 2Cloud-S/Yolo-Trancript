@@ -33,10 +33,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function getUser() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error } = await supabase.auth.getUser();
       
-      if (!user) {
-        router.push('/login');
+      if (error || !user) {
+        console.error("Error fetching user:", error);
+        router.push('/auth/login');
         return;
       }
       
@@ -45,11 +46,29 @@ export default function Dashboard() {
     }
     
     getUser();
-  }, [router]);
+
+    // Set up polling to refresh transcripts every minute
+    const intervalId = setInterval(() => {
+      setRefreshTrigger(prev => prev + 1);
+    }, 60000); // 60 seconds
+    
+    return () => clearInterval(intervalId);
+  }, []);
   
+  // Handle when a file is uploaded successfully
   const handleUploadComplete = () => {
-    // Trigger a refresh of the transcript list
+    // Trigger an immediate refresh after upload
     setRefreshTrigger(prev => prev + 1);
+    
+    // Schedule a few more refreshes to catch status updates
+    // First refresh after 10 seconds
+    setTimeout(() => setRefreshTrigger(prev => prev + 1), 10000);
+    
+    // Second refresh after 30 seconds
+    setTimeout(() => setRefreshTrigger(prev => prev + 1), 30000);
+    
+    // Third refresh after 60 seconds
+    setTimeout(() => setRefreshTrigger(prev => prev + 1), 60000);
   };
   
   if (loading) {

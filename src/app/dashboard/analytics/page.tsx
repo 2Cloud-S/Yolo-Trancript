@@ -323,6 +323,27 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </div>
+
+      {/* Credit System Section */}
+      <div className="bg-white shadow rounded-lg p-4 mb-6">
+        <h3 className="text-lg font-medium mb-4">Credit System</h3>
+        <div className="text-sm text-gray-600 mb-4">
+          <p>Our credit system charges based on audio duration:</p>
+          <ul className="list-disc pl-5 mt-2 space-y-1">
+            <li><strong>1 credit</strong> = 6 minutes of transcription</li>
+            <li>Minimum 1 credit per transcription</li>
+            <li>Credits are calculated based on the exact duration of your audio/video</li>
+          </ul>
+        </div>
+        <div className="text-sm text-gray-600">
+          <p className="font-medium">Examples:</p>
+          <ul className="list-disc pl-5 mt-2 space-y-1">
+            <li>A 4-minute audio file uses 1 credit</li>
+            <li>A 10-minute video uses 2 credits</li>
+            <li>A 30-minute podcast uses 5 credits</li>
+          </ul>
+        </div>
+      </div>
     </div>
   );
 } 

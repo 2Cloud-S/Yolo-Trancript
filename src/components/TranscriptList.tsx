@@ -8,6 +8,7 @@ import moment from 'moment';
 import { FileText, ExternalLink, Clock, Check, AlertCircle } from 'lucide-react';
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 import TranscriptionDisclaimer from '@/components/TranscriptionDisclaimer';
+import { AssemblyAI } from 'assemblyai';
 
 interface TranscriptListProps {
   userId?: string;
@@ -18,32 +19,115 @@ export default function TranscriptList({ userId, refreshTrigger = 0 }: Transcrip
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pollTimer, setPollTimer] = useState<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    async function fetchTranscripts() {
-      if (!userId) {
-        setLoading(false);
-        return;
-      }
+  // Fetch transcripts from the database
+  const fetchTranscripts = async () => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from('transcriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setTranscripts(data || []);
       
-      try {
-        const { data, error } = await supabase
-          .from('transcriptions')
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false });
+      // Check if there are any processing transcripts
+      const hasProcessingTranscripts = (data || []).some(t => t.status === 'processing');
+      
+      // If there are processing transcripts, set up polling 
+      if (hasProcessingTranscripts) {
+        startPolling();
+      } else if (pollTimer) {
+        // If no processing transcripts and pollTimer exists, clear it
+        clearInterval(pollTimer);
+        setPollTimer(null);
+      }
+    } catch (err) {
+      console.error('Error fetching transcripts:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch transcripts');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        if (error) throw error;
-        setTranscripts(data || []);
+  // Start polling for status updates
+  const startPolling = () => {
+    // Clear existing timer if any
+    if (pollTimer) {
+      clearInterval(pollTimer);
+    }
+    
+    // Set polling interval to 30 seconds
+    const timer = setInterval(checkProcessingTranscripts, 30000);
+    setPollTimer(timer);
+  };
+
+  // Check status of processing transcripts
+  const checkProcessingTranscripts = async () => {
+    const processingTranscripts = transcripts.filter(t => t.status === 'processing');
+    
+    if (processingTranscripts.length === 0) {
+      // If no processing transcripts, clear the timer
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        setPollTimer(null);
+      }
+      return;
+    }
+    
+    // Check status for each processing transcript
+    let hasUpdates = false;
+    
+    for (const transcript of processingTranscripts) {
+      try {
+        // Fetch transcript status from API
+        const response = await fetch(`/api/transcription/${transcript.transcript_id}`);
+        
+        if (!response.ok) continue;
+        
+        const data = await response.json();
+        
+        // If status has changed to 'completed'
+        if (data.status === 'completed' && transcript.status === 'processing') {
+          hasUpdates = true;
+          
+          // Update status in database
+          await supabase
+            .from('transcriptions')
+            .update({
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+              transcription_text: data.text || '',
+            })
+            .eq('id', transcript.id);
+        }
       } catch (err) {
-        console.error('Error fetching transcripts:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch transcripts');
-      } finally {
-        setLoading(false);
+        console.error(`Error checking status for transcript ${transcript.id}:`, err);
       }
     }
+    
+    // If any transcripts were updated, refresh the list
+    if (hasUpdates) {
+      fetchTranscripts();
+    }
+  };
 
+  useEffect(() => {
     fetchTranscripts();
+    
+    // Clean up the interval when component unmounts
+    return () => {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+      }
+    };
   }, [userId, refreshTrigger]);
 
   if (!userId) {

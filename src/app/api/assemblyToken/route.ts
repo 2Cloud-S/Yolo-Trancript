@@ -1,31 +1,33 @@
-import { AssemblyAI } from 'assemblyai';
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-export async function POST() {
-  const apiKey = process.env.ASSEMBLY_API_KEY;
-  
-  if (!apiKey) {
-    console.warn('⚠️ AssemblyAI API key is missing. Please set ASSEMBLY_API_KEY in your .env.local file.');
-    return Response.json({ 
-      error: 'AssemblyAI API key not configured', 
-      message: 'Please add the ASSEMBLY_API_KEY environment variable to your .env.local file.'
-    }, { status: 500 });
-  }
-  
+// Create a Supabase client with the service role key for admin access
+// This bypasses regular auth and uses direct database access
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export async function POST(request: Request) {
   try {
-    const assemblyClient = new AssemblyAI({
-      apiKey: apiKey
-    });
-
-    const token = await assemblyClient.realtime.createTemporaryToken({
-      expires_in: 3600, // 1 hour
-    });
-
-    return Response.json({ token });
+    // Get AssemblyAI API key from environment
+    const assemblyToken = process.env.ASSEMBLY_API_KEY;
+    
+    if (!assemblyToken) {
+      console.error('AssemblyAI API key not configured');
+      return NextResponse.json(
+        { error: 'Transcription service not configured' },
+        { status: 500 }
+      );
+    }
+    
+    // Return the token
+    return NextResponse.json({ token: assemblyToken });
   } catch (error) {
-    console.error('Error creating AssemblyAI token:', error);
-    return Response.json({ 
-      error: 'Failed to create AssemblyAI token',
-      message: 'An error occurred while creating the token.'
-    }, { status: 500 });
+    console.error('Error retrieving AssemblyAI token:', error);
+    return NextResponse.json(
+      { error: 'Failed to get transcription service token' },
+      { status: 500 }
+    );
   }
 } 
