@@ -138,11 +138,11 @@ export function CreditHistoryTable() {
   }, []);
 
   // Function to fetch credit history data
-  const fetchCreditHistory = async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
+    const fetchCreditHistory = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
       // First get the current user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
@@ -172,26 +172,26 @@ export function CreditHistoryTable() {
           .eq('user_id', user.id)
           .order('used_at', { ascending: false })
       ]);
-      
+        
       if (transactionsResponse.error) {
         console.error('Error fetching transactions:', transactionsResponse.error);
         throw new Error(`Failed to fetch transactions: ${transactionsResponse.error.message}`);
-      }
-      
+        }
+        
       if (usageResponse.error) {
         console.error('Error fetching usage:', usageResponse.error);
         throw new Error(`Failed to fetch usage: ${usageResponse.error.message}`);
       }
-      
+        
       setTransactions(transactionsResponse.data || []);
       setUsageHistory(usageResponse.data || []);
-    } catch (err: any) {
-      console.error('Error fetching credit history:', err);
-      setError(err.message || 'Failed to load credit history');
-    } finally {
-      setLoading(false);
-    }
-  };
+      } catch (err: any) {
+        console.error('Error fetching credit history:', err);
+        setError(err.message || 'Failed to load credit history');
+      } finally {
+        setLoading(false);
+      }
+    };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

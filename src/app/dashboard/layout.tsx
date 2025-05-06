@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import Sidebar from '@/components/ui/Sidebar';
 import { LogOut } from 'lucide-react';
+import Link from 'next/link';
 
 export default function DashboardLayout({
   children,
@@ -15,10 +16,13 @@ export default function DashboardLayout({
   const router = useRouter();
   const supabase = createClientComponentClient();
 
-  const handleSignOut = async () => {
+  // This client-side sign-out function often has issues with cache and redirection
+  // Keeping it as a fallback
+  const handleClientSignOut = async () => {
     try {
       await supabase.auth.signOut();
-      router.push('/auth/login');
+      router.push('/');
+      router.refresh();
     } catch (error) {
       console.error('Error signing out:', error);
     }
@@ -50,13 +54,14 @@ export default function DashboardLayout({
                 </div>
               </div>
               <div className="flex items-center">
-                <button
-                  onClick={handleSignOut}
+                {/* Use an anchor for full page navigation to the logout route */}
+                <a
+                  href="/logout"
                   className="ml-3 inline-flex items-center px-4 py-2 border-2 border-gray-900 text-sm font-bold rounded-md text-gray-900 bg-white hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors duration-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
                 >
                   <LogOut className="h-4 w-4 mr-2" />
                   Sign Out
-                </button>
+                </a>
               </div>
             </div>
           </div>

@@ -10,9 +10,14 @@ import {
   X,
   Home,
   Settings,
-  Book
+  Book,
+  Plus,
+  LogIn
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import YoloMascot from '@/components/YoloMascot';
+import CreditBalance from '@/components/CreditBalance';
+import { createClient } from '@/lib/supabase/client';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -21,6 +26,35 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const supabase = createClient();
+
+  // Check if user is authenticated
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log("Sidebar initial auth check:", !!session);
+        setIsAuthenticated(!!session);
+      } catch (error) {
+        console.error("Error checking auth session:", error);
+        setIsAuthenticated(false);
+      }
+    };
+
+    checkAuth();
+
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Sidebar auth state change:", event, "session exists:", !!session);
+      // Any event with a session means the user is authenticated
+      setIsAuthenticated(!!session);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const navigation = [
     { name: 'All Channels', href: '/dashboard', icon: Home },
@@ -126,17 +160,45 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
           {/* Footer */}
           <div className="border-t-2 border-gray-200 p-4">
-            <Link
-              href="/dashboard/settings"
-              className={`flex items-center px-3 py-3 text-sm font-bold rounded-md border ${
-                isActive('/dashboard/settings')
-                  ? 'bg-[#FFD60A] text-gray-900 border-gray-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
-                  : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <Settings className={`mr-3 h-5 w-5 ${isActive('/dashboard/settings') ? 'text-gray-900' : 'text-gray-500'}`} />
-              Settings
-            </Link>
+            <div className="flex flex-col space-y-3">
+              {isAuthenticated === null ? (
+                <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                  <div className="flex items-center space-x-2 animate-pulse">
+                    <div className="h-4 w-24 bg-gray-200 rounded"></div>
+                  </div>
+                </div>
+              ) : isAuthenticated ? (
+                <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                  <div className="flex justify-between items-center">
+                    <CreditBalance compact showBuyButton={false} />
+                    <Link href="/pricing" className="flex items-center text-xs text-purple-600 hover:text-purple-800 font-medium">
+                      <Plus className="h-3 w-3 mr-1" /> 
+                      <span>Buy</span>
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <Link 
+                  href="/auth/login"
+                  className="flex items-center justify-center p-3 text-sm font-medium text-purple-600 bg-purple-50 rounded-md border border-purple-200 hover:bg-purple-100"
+                >
+                  <LogIn className="h-4 w-4 mr-2" />
+                  <span>Sign in to view credits</span>
+                </Link>
+              )}
+              
+              <Link
+                href="/dashboard/settings"
+                className={`flex items-center px-3 py-3 text-sm font-bold rounded-md border ${
+                  isActive('/dashboard/settings')
+                    ? 'bg-[#FFD60A] text-gray-900 border-gray-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <Settings className={`mr-3 h-5 w-5 ${isActive('/dashboard/settings') ? 'text-gray-900' : 'text-gray-500'}`} />
+                Settings
+              </Link>
+            </div>
           </div>
         </div>
       </div>

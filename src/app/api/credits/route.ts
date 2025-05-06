@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { Database } from '@/types/supabase';
 import { hasEfficientCredits, logCreditUsage } from '@/lib/supabase/admin-client';
+import { createClient } from '@/lib/supabase/server';
 
 // Calculate credits needed based on audio duration (in seconds)
 function calculateCreditsNeeded(durationInSeconds: number): number {
@@ -16,43 +17,58 @@ function calculateCreditsNeeded(durationInSeconds: number): number {
 }
 
 // Get user's credit information
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    console.log("Credits API called");
+    const supabase = await createClient();
     
-    // Check if the user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Get user session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (sessionError) {
+      console.error("Session error in credits API:", sessionError);
+      return NextResponse.json({ error: 'Authentication error' }, { status: 401 });
     }
     
-    // Get user's credit information
+    if (!session || !session.user) {
+      console.log("No session found in credits API");
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    
+    const userId = session.user.id;
+    console.log("User authenticated in credits API, user ID:", userId);
+    
+    // Fetch the user's credit balance
     const { data, error } = await supabase
-      .from('user_credit_summary')
-      .select('*')
-      .eq('user_id', user.id)
+      .from('user_credits')
+      .select('credits_balance')
+      .eq('user_id', userId)
       .single();
-      
-    if (error) {
-      console.error('Error fetching user credits:', error);
-      return NextResponse.json({ error: 'Failed to fetch credit information' }, { status: 500 });
-    }
     
-    // If no credit record exists yet, return default values
-    if (!data) {
-      return NextResponse.json({
-        credits_balance: 0,
-        total_credits_purchased: 0,
-        total_credits_used: 0,
-        purchase_count: 0,
-        usage_count: 0
-      });
+    if (error) {
+      console.error("Error fetching credits:", error);
+      
+      // If the error is "No rows found", the user doesn't have a credits record yet
+      if (error.code === 'PGRST116') {
+        // Create an initial credits record
+        const { error: insertError } = await supabase
+          .from('user_credits')
+          .insert({ user_id: userId, credits_balance: 0 });
+        
+        if (insertError) {
+          console.error("Failed to create initial credits record:", insertError);
+          return NextResponse.json({ error: 'Failed to initialize credits' }, { status: 500 });
+        }
+        
+        return NextResponse.json({ credits_balance: 0 });
+      }
+      
+      return NextResponse.json({ error: 'Failed to fetch credits' }, { status: 500 });
     }
     
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Unexpected error in credits API:', error);
+    console.error("Exception in credits API:", error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
