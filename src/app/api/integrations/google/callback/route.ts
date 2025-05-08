@@ -22,6 +22,7 @@ export async function GET(request: Request) {
     // Get the client ID from either environment variable
     const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+    const REDIRECT_URI = `${requestUrl.origin}/api/integrations/google/callback`.replace(/([^:]\/)\/+/g, "$1");
 
     // Exchange the code for tokens
     const response = await fetch('https://oauth2.googleapis.com/token', {
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
         code,
         client_id: GOOGLE_CLIENT_ID!,
         client_secret: GOOGLE_CLIENT_SECRET!,
-        redirect_uri: `${requestUrl.origin}/api/integrations/google/callback`,
+        redirect_uri: REDIRECT_URI,
         grant_type: 'authorization_code',
       }),
     });
