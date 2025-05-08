@@ -55,9 +55,9 @@ export async function GET(request: Request) {
     const { error: dbError } = await supabase
       .from('integrations')
       .upsert({
-        id: 'google-drive',
+        id: `google-drive-${user.id}`,
         user_id: user.id,
-        provider: 'google-drive',
+        provider: 'google_drive',
         status: 'connected',
         connected_at: new Date().toISOString(),
         settings: {

@@ -40,6 +40,8 @@ function IntegrationsContent() {
   const [error, setError] = useState<string | null>(null);
   const [showFuturePopup, setShowFuturePopup] = useState(false);
   const [futureProvider, setFutureProvider] = useState<string>('');
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [showDebug, setShowDebug] = useState(false);
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -100,12 +102,21 @@ function IntegrationsContent() {
       
       if (!user) return;
 
+      console.log(`🔍 [integrations page] Fetching integrations for user: ${user.id}`);
       const { data, error } = await supabase
         .from('integrations')
         .select('*')
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error(`❌ [integrations page] Error fetching integrations: ${error.message}`);
+        throw error;
+      }
+
+      console.log(`✅ [integrations page] Found ${data?.length || 0} integrations`);
+      if (data && data.length > 0) {
+        console.log(`🔍 [integrations page] Integration providers: ${data.map(i => i.provider).join(', ')}`);
+      }
 
       setIntegrations(data || []);
     } catch (error) {
@@ -113,6 +124,65 @@ function IntegrationsContent() {
       setError('Failed to fetch integrations');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Add a debug function to check database state
+  const checkDatabaseState = async () => {
+    try {
+      setDebugInfo({ status: 'loading' });
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setDebugInfo({ error: 'No authenticated user found' });
+        return;
+      }
+      
+      // Check if integrations table exists
+      const { data: tableExists, error: tableError } = await supabase
+        .from('integrations')
+        .select('id')
+        .limit(1);
+      
+      if (tableError) {
+        setDebugInfo({ 
+          error: `Table error: ${tableError.message}`,
+          code: tableError.code,
+          details: tableError.details 
+        });
+        return;
+      }
+      
+      // Check total count of integration records
+      const { count: totalCount, error: countError } = await supabase
+        .from('integrations')
+        .select('*', { count: 'exact', head: true });
+      
+      // Check user's integration records
+      const { data: userIntegrations, error: userIntegrationsError } = await supabase
+        .from('integrations')
+        .select('*')
+        .eq('user_id', user.id);
+      
+      // Check structure of table
+      const { data: tableInfo, error: infoError } = await supabase
+        .rpc('get_table_info', { table_name: 'integrations' });
+      
+      setDebugInfo({
+        user: { id: user.id, email: user.email },
+        tableExists: tableExists && tableExists.length > 0,
+        tableCount: totalCount || 0,
+        countError: countError,
+        userIntegrations: userIntegrations || [],
+        userIntegrationsError: userIntegrationsError,
+        tableInfo: tableInfo,
+        infoError: infoError
+      });
+      
+      setShowDebug(true);
+      
+    } catch (error) {
+      setDebugInfo({ error: `Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}` });
     }
   };
 
@@ -155,7 +225,7 @@ function IntegrationsContent() {
       // Revoke OAuth tokens if they exist
       if (integration.settings?.tokens) {
         switch (integration.provider) {
-          case 'google-drive':
+          case 'google_drive':
             await fetch('/api/integrations/google-drive/disconnect', {
               method: 'POST',
               headers: {
@@ -199,7 +269,7 @@ function IntegrationsContent() {
     try {
       // Implement sync logic for each provider
       switch (integration.provider) {
-        case 'google-drive':
+        case 'google_drive':
           // Check if token needs refresh
           if (integration.settings?.tokens?.expires_at && 
               Date.now() >= integration.settings.tokens.expires_at) {
@@ -270,8 +340,55 @@ function IntegrationsContent() {
             </div>
             <div className="ml-3">
               <p className="text-sm text-red-700">{error}</p>
+              {process.env.NODE_ENV !== 'production' && (
+                <details className="mt-2">
+                  <summary className="text-sm text-gray-700 cursor-pointer">Debug Info</summary>
+                  <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-40">
+                    {JSON.stringify(integrations, null, 2)}
+                  </pre>
+                </details>
+              )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Add debug button */}
+      {process.env.NODE_ENV !== 'production' && (
+        <div className="mb-4 flex space-x-2">
+          <button
+            onClick={checkDatabaseState}
+            className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+          >
+            Debug Database
+          </button>
+          
+          <a
+            href="/api/integrations/debug"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Advanced Debug
+          </a>
+          
+          <a
+            href="/api/integrations/supabase-rls"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+          >
+            Debug RLS Policies
+          </a>
+          
+          {showDebug && debugInfo && (
+            <div className="mt-2 p-4 bg-gray-50 rounded border border-gray-200">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Database Debug Info</h4>
+              <pre className="text-xs bg-gray-100 p-2 rounded overflow-auto max-h-80">
+                {JSON.stringify(debugInfo, null, 2)}
+              </pre>
+            </div>
+          )}
         </div>
       )}
 
@@ -318,7 +435,7 @@ function IntegrationsContent() {
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-2">
         {availableIntegrations.map((integration) => {
-          const connectedIntegration = integrations.find(i => i.id === integration.id);
+          const connectedIntegration = integrations.find(i => i.provider === integration.id.replace('-', '_'));
           const isConnected = connectedIntegration?.status === 'connected';
 
           return (
