@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { randomBytes } from 'crypto';
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL}/api/integrations/google-drive/callback`;
 
 const GOOGLE_OAUTH_SCOPES = [

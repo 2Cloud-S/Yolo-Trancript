@@ -1,101 +1,66 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { getCurrentUser, getIntegration, updateIntegration } from '@/lib/supabase/api-client';
 
 export async function POST(request: NextRequest) {
   try {
-    let response = NextResponse.next({
+    const response = NextResponse.next({
       request: {
         headers: request.headers,
       },
     });
 
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value;
-          },
-          set(name: string, value: string, options: CookieOptions) {
-            response.cookies.set({
-              name,
-              value,
-              ...options,
-              path: options.path ?? '/',
-              domain: options.domain,
-            });
-          },
-          remove(name: string, options: CookieOptions) {
-            response.cookies.set({
-              name,
-              value: '',
-              ...options,
-              path: options.path ?? '/',
-              domain: options.domain,
-              maxAge: 0,
-            });
-          },
-        },
-      }
-    );
-
     // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-
+    const user = await getCurrentUser(request, response);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get the integration
-    const { data: integration, error: fetchError } = await supabase
-      .from('integrations')
-      .select()
-      .eq('user_id', user.id)
-      .eq('provider', 'google_drive')
-      .single();
+    // Get request body
+    const { token } = await request.json();
+    if (!token) {
+      return NextResponse.json({ error: 'Token is required' }, { status: 400 });
+    }
 
-    if (fetchError || !integration) {
+    // Get Google Drive integration
+    const integration = await getIntegration(request, response, user.id, 'google_drive');
+    if (!integration) {
       return NextResponse.json({ error: 'Integration not found' }, { status: 404 });
     }
 
-    // Revoke Google Drive access token
-    if (integration.settings?.tokens?.access_token) {
-      try {
-        await fetch(`https://oauth2.googleapis.com/revoke?token=${integration.settings.tokens.access_token}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-        });
-      } catch (error) {
-        console.error('Failed to revoke Google Drive token:', error);
-        // Continue with disconnection even if token revocation fails
-      }
+    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+
+    // Revoke the token
+    const revokeResponse = await fetch('https://oauth2.googleapis.com/revoke', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        token,
+        client_id: GOOGLE_CLIENT_ID!,
+        client_secret: GOOGLE_CLIENT_SECRET!,
+      }),
+    });
+
+    if (!revokeResponse.ok) {
+      console.error('Token revocation error:', await revokeResponse.text());
+      // Continue anyway as we're disconnecting
     }
 
     // Update integration status
-    const { error: updateError } = await supabase
-      .from('integrations')
-      .update({
-        status: 'disconnected',
-        settings: {
-          ...integration.settings,
-          tokens: null,
-        },
-      })
-      .eq('id', integration.id);
-
-    if (updateError) {
-      throw updateError;
-    }
+    await updateIntegration(request, response, integration.id, {
+      status: 'disconnected',
+      connected_at: null,
+      settings: {
+        ...integration.settings,
+        tokens: null,
+      },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Google Drive disconnect error:', error);
-    return NextResponse.json(
-      { error: 'Failed to disconnect from Google Drive' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 } 

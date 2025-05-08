@@ -104,7 +104,7 @@ export default function Home() {
                     href="/auth/register?redirect=/dashboard"
                     className="px-8 py-3 text-base font-medium rounded-md text-white bg-gray-900 border-2 border-gray-900 hover:bg-gray-800 md:py-4 md:text-lg md:px-10 inline-flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(255,255,255,0.5)]"
                   >
-                    Create Free Account
+                    Get Free Trial
                   </Link>
                 )}
               </div>
@@ -385,7 +385,7 @@ export default function Home() {
                   <span className="block">Start a Free Trial</span>
                 </h2>
                 <p className="mt-3 max-w-md text-lg">
-                  Start a free trial with 30 API credits, no credit card required
+                Start a free trial with 30 Minutes of Transcription credits, no credit card required
                 </p>
               </div>
             </div>

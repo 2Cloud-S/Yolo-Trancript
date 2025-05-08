@@ -18,6 +18,10 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createRouteHandlerClient({ cookies });
+    
+    // Get the client ID from either environment variable
+    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
     // Exchange the code for tokens
     const response = await fetch('https://oauth2.googleapis.com/token', {
@@ -27,8 +31,8 @@ export async function GET(request: Request) {
       },
       body: new URLSearchParams({
         code,
-        client_id: process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        client_id: GOOGLE_CLIENT_ID!,
+        client_secret: GOOGLE_CLIENT_SECRET!,
         redirect_uri: `${requestUrl.origin}/api/integrations/google/callback`,
         grant_type: 'authorization_code',
       }),

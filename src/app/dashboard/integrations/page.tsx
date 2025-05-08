@@ -137,16 +137,8 @@ function IntegrationsContent() {
       let authUrl = '';
       switch (provider) {
         case 'google-drive':
-          authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
-            client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-            redirect_uri: `${window.location.origin}/api/integrations/google/callback`,
-            response_type: 'code',
-            scope: integration.scopes.join(' '),
-            access_type: 'offline',
-            prompt: 'consent',
-            state
-          });
-          break;
+          window.location.href = `/api/integrations/google-drive`;
+          return;
         default:
           throw new Error('Provider not implemented');
       }
@@ -164,29 +156,19 @@ function IntegrationsContent() {
       if (integration.settings?.tokens) {
         switch (integration.provider) {
           case 'google-drive':
-            await fetch('https://oauth2.googleapis.com/revoke', {
+            await fetch('/api/integrations/google-drive/disconnect', {
               method: 'POST',
               headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Type': 'application/json',
               },
-              body: new URLSearchParams({
+              body: JSON.stringify({
                 token: integration.settings.tokens.access_token,
-                client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-                client_secret: process.env.GOOGLE_CLIENT_SECRET!,
               }),
             });
             break;
           // Add other providers here
         }
       }
-
-      const { error } = await supabase
-        .from('integrations')
-        .delete()
-        .eq('id', integration.id)
-        .eq('user_id', (await supabase.auth.getUser()).data.user?.id);
-
-      if (error) throw error;
 
       await fetchIntegrations();
     } catch (error) {
@@ -221,16 +203,13 @@ function IntegrationsContent() {
           // Check if token needs refresh
           if (integration.settings?.tokens?.expires_at && 
               Date.now() >= integration.settings.tokens.expires_at) {
-            const response = await fetch('https://oauth2.googleapis.com/token', {
+            const response = await fetch('/api/integrations/google-drive/refresh-token', {
               method: 'POST',
               headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Type': 'application/json',
               },
-              body: new URLSearchParams({
-                client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-                client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+              body: JSON.stringify({
                 refresh_token: integration.settings.tokens.refresh_token,
-                grant_type: 'refresh_token',
               }),
             });
 

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { AssemblyAI } from 'assemblyai';
+import { useTrialCredit } from '@/lib/credits';
+import { checkAuthStatus } from '@/lib/auth';
 
 // Create a Supabase admin client with service role key
 const supabaseAdmin = createClient(
@@ -91,16 +93,38 @@ async function checkTranscriptionStatus(transcriptId: string, dbRecordId: string
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
+    const { userId } = await checkAuthStatus();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if user can use trial credits
+    const canUseTrial = await useTrialCredit(userId);
+    if (!canUseTrial) {
+      // Check regular credits if trial is not available
+      const { data: credits, error: creditError } = await supabaseAdmin
+        .from('user_credits')
+        .select('credits_balance')
+        .eq('user_id', userId)
+        .single();
+
+      if (creditError || !credits || credits.credits_balance <= 0) {
+        return NextResponse.json(
+          { error: 'Insufficient credits' },
+          { status: 402 }
+        );
+      }
+    }
+
     // Parse the request JSON
-    const requestData = await request.json();
+    const requestData = await req.json();
     const { 
       audio_url, 
       diarization_options, 
       custom_vocabulary, 
       sentiment_analysis, 
-      user_id,
       file_name,
       file_size,
       file_type,
@@ -111,10 +135,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing audio URL' }, { status: 400 });
     }
     
-    if (!user_id) {
-      return NextResponse.json({ error: 'Missing user ID' }, { status: 400 });
-    }
-
     if (!duration_seconds || isNaN(Number(duration_seconds))) {
       return NextResponse.json({ error: 'Missing or invalid duration' }, { status: 400 });
     }
@@ -126,7 +146,7 @@ export async function POST(request: Request) {
     const { data: credits, error: creditsError } = await supabaseAdmin
       .from('user_credits')
       .select('credits_balance')
-      .eq('user_id', user_id)
+      .eq('user_id', userId)
       .single();
     
     if (creditsError) {
@@ -170,7 +190,7 @@ export async function POST(request: Request) {
     const { data: transcription, error: dbError } = await supabaseAdmin
       .from('transcriptions')
       .insert({
-        user_id: user_id,
+        user_id: userId,
         transcript_id: transcript.id,
         status: 'processing',
         file_name: file_name || `transcript_${transcript.id}.json`,
@@ -196,17 +216,22 @@ export async function POST(request: Request) {
       );
     }
     
-    // Deduct calculated credits from the user
-    const { error: creditUpdateError } = await supabaseAdmin
-      .from('user_credits')
-      .update({
-        credits_balance: credits.credits_balance - creditsNeeded
-      })
-      .eq('user_id', user_id);
-    
-    if (creditUpdateError) {
-      console.error('Failed to update user credits:', creditUpdateError);
-      // Log but don't fail the request
+    // Update credits (only if not using trial credits)
+    if (!canUseTrial) {
+      const { error: creditUpdateError } = await supabaseAdmin
+        .from('user_credits')
+        .update({
+          credits_balance: credits.credits_balance - 1
+        })
+        .eq('user_id', userId);
+
+      if (creditUpdateError) {
+        console.error('Error updating credits:', creditUpdateError);
+        return NextResponse.json(
+          { error: 'Error updating credits' },
+          { status: 500 }
+        );
+      }
     }
     
     // Schedule background checks for this transcription
