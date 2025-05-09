@@ -219,22 +219,34 @@ export default function TranscribePage() {
     setError(null);
     
     try {
+      console.log('[CLIENT] Starting upload process for file:', {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        duration: audioDuration
+      });
+      
       // Get auth token for the request
       const supabase = createClientComponentClient<Database>();
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
       
       if (!token) {
+        console.error('[CLIENT] Authentication failed: No session token available');
         throw new Error('Authentication required');
       }
       
+      console.log('[CLIENT] Auth token retrieved, length:', token.length);
+      
       // Create a ReadableStream from the file
+      console.log('[CLIENT] Creating stream from file');
       const fileStream = file.stream();
       
       // Create a progress-tracking wrapper around the stream
       const totalSize = file.size;
       let loadedSize = 0;
       
+      console.log('[CLIENT] Setting up progress tracking stream');
       // Set up a transform stream to track progress
       const progressStream = new TransformStream({
         transform(chunk, controller) {
@@ -248,58 +260,82 @@ export default function TranscribePage() {
       // Pipe the file through our progress tracker
       const trackedStream = fileStream.pipeThrough(progressStream);
       
+      console.log('[CLIENT] Initiating streaming upload to /api/stream-upload');
       // Stream the file to our API
-      const response = await fetch('/api/stream-upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': file.type,
-          'X-File-Name': file.name,
-          'Authorization': `Bearer ${token}`
-        },
-        body: trackedStream,
-        // Don't set duplex: 'half' as it's not supported in some browsers
-      });
-      
-      if (!response.ok) {
-        let errorText = 'Failed to upload file';
-        try {
-          const errorData = await response.json();
-          errorText = errorData.error || errorText;
-        } catch (e) {
-          console.error('Failed to parse error response:', e);
+      try {
+        const response = await fetch('/api/stream-upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': file.type,
+            'X-File-Name': file.name,
+            'Authorization': `Bearer ${token}`
+          },
+          body: trackedStream,
+          // Don't set duplex: 'half' as it's not supported in some browsers
+        });
+        
+        console.log('[CLIENT] Upload response status:', response.status);
+        
+        if (!response.ok) {
+          let errorText = 'Failed to upload file';
+          try {
+            const errorData = await response.json();
+            console.error('[CLIENT] Upload failed with server error:', errorData);
+            errorText = errorData.error || errorText;
+          } catch (e) {
+            console.error('[CLIENT] Failed to parse error response:', e);
+          }
+          throw new Error(errorText);
         }
-        throw new Error(errorText);
+        
+        const responseData = await response.json();
+        console.log('[CLIENT] Upload successful, response:', responseData);
+        const { url: audioUrl, fileName } = responseData;
+        
+        console.log('[CLIENT] Starting transcription with audio URL:', audioUrl);
+        // Now start the transcription job with the audio URL
+        const transcribeResponse = await fetch('/api/transcribe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            audio_url: audioUrl,
+            file_name: fileName || file.name,
+            file_type: file.type,
+            file_size: file.size,
+            duration_seconds: audioDuration
+          }),
+        });
+        
+        console.log('[CLIENT] Transcription response status:', transcribeResponse.status);
+        
+        if (!transcribeResponse.ok) {
+          const errorData = await transcribeResponse.json();
+          console.error('[CLIENT] Transcription failed with error:', errorData);
+          throw new Error(errorData.error || 'Transcription failed');
+        }
+        
+        const data = await transcribeResponse.json();
+        console.log('[CLIENT] Transcription successful, ID:', data.transcriptionId);
+        setTranscriptionId(data.transcriptionId);
+        
+        // Redirect to the results page
+        router.push(`/dashboard/transcript/${data.transcriptionId}`);
+      } catch (fetchError: any) {
+        console.error('[CLIENT] Fetch error during upload/transcription:', {
+          message: fetchError.message,
+          name: fetchError.name,
+          stack: fetchError.stack
+        });
+        throw fetchError;
       }
-      
-      const { url: audioUrl, fileName } = await response.json();
-      
-      // Now start the transcription job with the audio URL
-      const transcribeResponse = await fetch('/api/transcribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          audio_url: audioUrl,
-          file_name: fileName || file.name,
-          file_type: file.type,
-          file_size: file.size,
-          duration_seconds: audioDuration
-        }),
-      });
-      
-      if (!transcribeResponse.ok) {
-        const errorData = await transcribeResponse.json();
-        throw new Error(errorData.error || 'Transcription failed');
-      }
-      
-      const data = await transcribeResponse.json();
-      setTranscriptionId(data.transcriptionId);
-      
-      // Redirect to the results page
-      router.push(`/dashboard/transcript/${data.transcriptionId}`);
     } catch (err: any) {
-      console.error('Upload or transcription error:', err);
+      console.error('[CLIENT] Upload or transcription error:', {
+        message: err.message,
+        name: err.name,
+        stack: err.stack
+      });
       setError(err.message || 'Failed to process your audio file');
       setIsUploading(false);
     }
