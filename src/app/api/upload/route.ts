@@ -14,35 +14,86 @@ const assemblyai = new AssemblyAI({
 });
 
 export async function POST(request: Request) {
+  console.log('[API/UPLOAD] Starting file upload process');
+  
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    
-    if (!file) {
+    // First try to get the form data
+    let file: File | null = null;
+    try {
+      const formData = await request.formData();
+      file = formData.get('file') as File;
+      
+      if (!file) {
+        console.error('[API/UPLOAD] No file provided in form data');
+        return NextResponse.json(
+          { error: 'No file provided' },
+          { status: 400 }
+        );
+      }
+      
+      console.log('[API/UPLOAD] File received from form data:', { 
+        name: file.name, 
+        type: file.type, 
+        size: file.size 
+      });
+    } catch (formError) {
+      console.error('[API/UPLOAD] Error parsing form data:', formError);
       return NextResponse.json(
-        { error: 'No file provided' },
+        { error: 'Invalid form data: ' + (formError instanceof Error ? formError.message : 'Unknown error') },
         { status: 400 }
       );
     }
     
     // Get the file as an ArrayBuffer
-    const arrayBuffer = await file.arrayBuffer();
-    const fileBuffer = Buffer.from(arrayBuffer);
+    let fileBuffer: Buffer;
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      fileBuffer = Buffer.from(arrayBuffer);
+      console.log('[API/UPLOAD] Successfully converted file to buffer, size:', fileBuffer.length);
+    } catch (bufferError) {
+      console.error('[API/UPLOAD] Error converting file to buffer:', bufferError);
+      return NextResponse.json(
+        { error: 'Failed to process file: ' + (bufferError instanceof Error ? bufferError.message : 'Unknown error') },
+        { status: 500 }
+      );
+    }
     
-    // Upload directly to AssemblyAI instead of Supabase Storage
-    const uploadUrl = await assemblyai.files.upload(fileBuffer);
-    
-    console.log('File uploaded to AssemblyAI:', uploadUrl);
+    // Upload directly to AssemblyAI
+    let uploadUrl: string;
+    try {
+      uploadUrl = await assemblyai.files.upload(fileBuffer);
+      console.log('[API/UPLOAD] File successfully uploaded to AssemblyAI:', uploadUrl);
+    } catch (uploadError: any) {
+      console.error('[API/UPLOAD] AssemblyAI upload error:', uploadError);
+      return NextResponse.json(
+        { error: 'Failed to upload to transcription service: ' + (uploadError.message || 'Unknown error') },
+        { status: 500 }
+      );
+    }
     
     return NextResponse.json({
       url: uploadUrl,
-      fileName: file.name
+      fileName: file.name,
+      success: true
     });
   } catch (error: any) {
-    console.error('Upload error:', error);
+    console.error('[API/UPLOAD] Unexpected error:', error);
     return NextResponse.json(
-      { error: error.message || 'Upload failed' },
+      { error: 'Upload failed: ' + (error.message || 'Unknown error') },
       { status: 500 }
     );
   }
+}
+
+// Handle OPTIONS requests for CORS preflight
+export async function OPTIONS(request: Request) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
+    },
+  });
 } 

@@ -11,6 +11,22 @@ const nextConfig = {
   // Increase static page generation timeout to 180 seconds (3 minutes)
   staticPageGenerationTimeout: 180,
   
+  // Configure CORS headers for all API routes
+  async headers() {
+    return [
+      {
+        // Apply to all API routes
+        source: "/api/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Credentials", value: "true" },
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET,OPTIONS,PATCH,DELETE,POST,PUT" },
+          { key: "Access-Control-Allow-Headers", value: "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization" },
+        ]
+      }
+    ];
+  },
+  
   // Define explicit rewrites to handle both webhook URL patterns
   async rewrites() {
     return [
