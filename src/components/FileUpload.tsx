@@ -10,6 +10,7 @@ import Dropdown from './ui/Dropdown';
 import { CustomVocabulary } from '@/types/transcription';
 import CustomVocabularyManager from './CustomVocabularyManager';
 import Link from 'next/link';
+import { uploadFileDirectly } from '@/lib/assemblyai-direct';
 
 interface FileUploadProps {
   userId?: string;
@@ -247,10 +248,88 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
         options.customVocabulary = selectedVocabulary.terms;
       }
       
-      // Send file for transcription
-      const response = await transcribeFile(file, options);
+      // NEW CODE: Get the AssemblyAI token securely
+      const tokenResponse = await fetch('/api/assemblyai-token');
+      if (!tokenResponse.ok) {
+        throw new Error('Failed to get AssemblyAI token');
+      }
+      const { token: assemblyToken } = await tokenResponse.json();
       
-      const { transcriptId, status } = response;
+      // NEW CODE: Upload directly to AssemblyAI from the client
+      console.log('Uploading file directly to AssemblyAI...');
+      const uploadUrl = await uploadFileDirectly(file, assemblyToken);
+      console.log('Direct upload successful:', uploadUrl);
+      
+      // Get file duration (existing code)
+      const audio = document.createElement('audio');
+      audio.src = URL.createObjectURL(file);
+      
+      const getDuration = new Promise<number>((resolve) => {
+        audio.onloadedmetadata = () => {
+          const duration = Math.round(audio.duration);
+          URL.revokeObjectURL(audio.src);
+          resolve(duration);
+        };
+      });
+      
+      // Set a timeout in case metadata loading fails
+      const durationTimeout = new Promise<number>((resolve) => {
+        setTimeout(() => {
+          // Estimate based on file size if metadata load fails
+          const sizeMB = file.size / (1024 * 1024);
+          const estimatedDuration = Math.round(sizeMB * 60); // Rough estimate: 1MB ≈ 1 minute
+          resolve(estimatedDuration);
+        }, 5000); // 5 seconds timeout
+      });
+      
+      // Use the first result from either promise
+      const duration = await Promise.race([getDuration, durationTimeout]);
+      
+      // Send transcription request as before
+      const transcribeResponse = await fetch('/api/transcribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          audio_url: uploadUrl,
+          user_id: userId,
+          file_name: file.name,
+          file_size: file.size,
+          file_type: file.type,
+          duration_seconds: duration,
+          diarization_options: options?.diarization ? {
+            speakers_expected: options.diarization.speakers_expected
+          } : undefined,
+          custom_vocabulary: options?.customVocabulary || [],
+          sentiment_analysis: options?.enableSentiment || true
+        }),
+        credentials: 'include',
+      });
+      
+      if (!transcribeResponse.ok) {
+        let errorMessage = `Transcription failed: Status ${transcribeResponse.status}`;
+        
+        try {
+          const errorData = await transcribeResponse.json();
+          
+          if (transcribeResponse.status === 401) {
+            throw new Error('Authentication required: Your session has expired. Please log in again.');
+          }
+          
+          if (transcribeResponse.status === 403) {
+            throw new Error('Insufficient credits. Please purchase more credits to continue.');
+          }
+          
+          errorMessage = `Transcription failed: ${errorData.error || 'Unknown error'}`;
+        } catch (jsonError) {
+          console.error('Failed to parse error response:', jsonError);
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
+      const response = await transcribeResponse.json();
       
       // When upload is successful, schedule status checks
       if (response && response.transcriptId) {

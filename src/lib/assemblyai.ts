@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client';
+import { uploadFileDirectly } from './assemblyai-direct';
 
 // Helper function to get AssemblyAI token
 export async function getAssemblyToken(): Promise<string> {
@@ -91,35 +92,17 @@ export async function transcribeFile(
     const duration = await getFileDuration(file);
     console.log(`File duration determined: ${duration} seconds`);
     
-    // Upload file directly to AssemblyAI using our API endpoint
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    const uploadResponse = await fetch('/api/upload', {
-      method: 'POST',
-      body: formData,
-      credentials: 'include', // Include credentials for auth cookies
-    });
-    
-    if (!uploadResponse.ok) {
-      let errorText = 'Failed to upload file';
-      try {
-        const errorData = await uploadResponse.json();
-        errorText = errorData.error || errorText;
-      } catch (jsonError) {
-        console.error('Failed to parse error response:', jsonError);
-      }
-      throw new Error(errorText);
+    // Get the AssemblyAI token for direct upload
+    const tokenResponse = await fetch('/api/assemblyai-token');
+    if (!tokenResponse.ok) {
+      throw new Error('Failed to get AssemblyAI token');
     }
+    const { token: assemblyToken } = await tokenResponse.json();
     
-    const uploadResult = await uploadResponse.json();
-    const { url, fileName } = uploadResult;
-    
-    if (!url) {
-      throw new Error('Failed to get upload URL');
-    }
-    
-    console.log('Upload successful to AssemblyAI:', { url, fileName });
+    // Upload directly to AssemblyAI
+    console.log('Uploading file directly to AssemblyAI...');
+    const url = await uploadFileDirectly(file, assemblyToken);
+    console.log('Direct upload successful:', url);
     
     // Send transcription request with options AND user_id
     const transcribeResponse = await fetch('/api/transcribe', {
@@ -130,7 +113,7 @@ export async function transcribeFile(
       body: JSON.stringify({ 
         audio_url: url, // This is now an AssemblyAI URL
         user_id: userId, // Include user ID explicitly
-        file_name: fileName || file.name, // Pass the filename for the record
+        file_name: file.name, // Pass the filename for the record
         file_size: file.size,
         file_type: file.type,
         duration_seconds: duration, // Include duration for credit calculation
