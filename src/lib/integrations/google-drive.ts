@@ -87,19 +87,41 @@ export async function uploadToGoogleDrive(
   form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
   form.append('file', file);
 
-  const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${integration.settings!.tokens!.access_token}`,
-    },
-    body: form
-  });
+  try {
+    console.log(`Uploading file "${file.name}" (${file.size} bytes) to Google Drive folder "${folderPath}"`);
+    
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,webViewLink', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${integration.settings!.tokens!.access_token}`,
+      },
+      body: form
+    });
 
-  if (!response.ok) {
-    throw new Error('Failed to upload file to Google Drive');
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('Google Drive API error:', errorData);
+      
+      if (response.status === 401) {
+        throw new Error('Google Drive authorization error. Please reconnect your account.');
+      } else if (response.status === 403) {
+        throw new Error('Permission denied. The app may not have sufficient access to upload files.');
+      } else if (response.status === 404) {
+        throw new Error('The folder path was not found in Google Drive.');
+      } else if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please try again later.');
+      } else {
+        throw new Error(`Failed to upload file to Google Drive: ${errorData.error?.message || response.statusText}`);
+      }
+    }
+
+    const data = await response.json();
+    console.log(`Successfully uploaded file to Google Drive with ID: ${data.id}`);
+    return data;
+  } catch (error) {
+    console.error('Error uploading to Google Drive:', error);
+    throw error;
   }
-
-  return response.json();
 }
 
 export async function listFiles(

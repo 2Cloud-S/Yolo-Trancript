@@ -72,13 +72,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required file data' }, { status: 400 });
     }
 
-    // Download the file from Supabase storage
-    const fileResponse = await fetch(fileUrl);
-    if (!fileResponse.ok) {
-      throw new Error('Failed to download file from storage');
+    // Check if we received base64 data or a URL
+    let fileBlob;
+    if (fileUrl.startsWith('data:')) {
+      // Handle base64 data
+      try {
+        // Extract the base64 content from the data URL
+        const base64Data = fileUrl.split(',')[1];
+        const binaryString = atob(base64Data);
+        const bytes = new Uint8Array(binaryString.length);
+        
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        fileBlob = new Blob([bytes], { type: fileType });
+      } catch (error) {
+        console.error('Error processing base64 data:', error);
+        return NextResponse.json({ error: 'Invalid base64 file data' }, { status: 400 });
+      }
+    } else {
+      // Handle URL-based file download
+      try {
+        const fileResponse = await fetch(fileUrl);
+        if (!fileResponse.ok) {
+          throw new Error(`Failed to download file from storage: ${fileResponse.statusText}`);
+        }
+        fileBlob = await fileResponse.blob();
+      } catch (error) {
+        console.error('Error downloading file:', error);
+        return NextResponse.json({ 
+          error: `Failed to download file from storage: ${error instanceof Error ? error.message : 'Unknown error'}` 
+        }, { status: 500 });
+      }
     }
 
-    const fileBlob = await fileResponse.blob();
+    // Create the file object
     const file = new File([fileBlob], fileName, { type: fileType });
 
     // Check if token needs refresh
@@ -100,11 +129,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Upload file to Google Drive
+    console.log(`Attempting to upload file ${fileName} to Google Drive`);
     const driveFile = await uploadToGoogleDrive(
       integration,
       file,
       integration.settings?.folder_path || '/Transcriptions'
     );
+    console.log(`Successfully uploaded file to Google Drive: ${JSON.stringify(driveFile)}`);
 
     // Update last sync time
     await supabase
@@ -113,6 +144,22 @@ export async function POST(request: NextRequest) {
         last_sync: new Date().toISOString(),
       })
       .eq('id', integration.id);
+      
+    // Update transcription record with drive file information
+    const { error: transcriptionUpdateError } = await supabase
+      .from('transcriptions')
+      .update({
+        synced_to_drive: true,
+        drive_file_id: driveFile.id,
+        drive_file_link: driveFile.webViewLink
+      })
+      .eq('id', fileId)
+      .eq('user_id', user.id);
+      
+    if (transcriptionUpdateError) {
+      console.error('Failed to update transcription with drive file info:', transcriptionUpdateError);
+      // Continue anyway, as the file was successfully uploaded to Drive
+    }
 
     return NextResponse.json({
       success: true,
@@ -125,7 +172,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Google Drive sync error:', error);
     return NextResponse.json(
-      { error: 'Failed to sync file with Google Drive' },
+      { error: `Failed to sync file with Google Drive: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 }
     );
   }

@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createRouteHandlerClient({ cookies });
-    
+
     // Get the client ID from either environment variable
     const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;

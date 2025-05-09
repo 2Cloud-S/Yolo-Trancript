@@ -2,18 +2,18 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { AssemblyAI } from 'assemblyai';
 import { useTrialCredit } from '@/lib/credits';
-import { checkAuthStatus } from '@/lib/auth';
+import { createClient as createServerSupabase } from '@/lib/supabase/server';
+
+// Initialize AssemblyAI client
+const assemblyai = new AssemblyAI({
+  apiKey: process.env.ASSEMBLY_API_KEY!
+});
 
 // Create a Supabase admin client with service role key
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-// Initialize AssemblyAI client
-const assemblyai = new AssemblyAI({
-  apiKey: process.env.ASSEMBLY_API_KEY!
-});
 
 // Calculate credits needed based on audio duration (in seconds)
 function calculateCreditsNeeded(durationInSeconds: number): number {
@@ -95,10 +95,23 @@ async function checkTranscriptionStatus(transcriptId: string, dbRecordId: string
 
 export async function POST(req: Request) {
   try {
-    const { userId } = await checkAuthStatus();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    console.log("Initializing Supabase client from server library");
+    
+    // Create a proper server-side client
+    const supabase = await createServerSupabase();
+    
+    console.log("Supabase client initialized successfully");
+    
+    // Get the authenticated user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      console.error("Authentication failed:", userError);
+      return NextResponse.json({ error: 'Unauthorized: ' + (userError?.message || 'No authenticated user') }, { status: 401 });
     }
+    
+    const userId = user.id;
+    console.log(`Authenticated user: ${userId}`);
 
     // Check if user can use trial credits
     const canUseTrial = await useTrialCredit(userId);

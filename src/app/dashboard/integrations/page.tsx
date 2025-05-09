@@ -38,10 +38,9 @@ function IntegrationsContent() {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [showFuturePopup, setShowFuturePopup] = useState(false);
   const [futureProvider, setFutureProvider] = useState<string>('');
-  const [debugInfo, setDebugInfo] = useState<any>(null);
-  const [showDebug, setShowDebug] = useState(false);
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -124,65 +123,6 @@ function IntegrationsContent() {
       setError('Failed to fetch integrations');
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Add a debug function to check database state
-  const checkDatabaseState = async () => {
-    try {
-      setDebugInfo({ status: 'loading' });
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setDebugInfo({ error: 'No authenticated user found' });
-        return;
-      }
-      
-      // Check if integrations table exists
-      const { data: tableExists, error: tableError } = await supabase
-        .from('integrations')
-        .select('id')
-        .limit(1);
-      
-      if (tableError) {
-        setDebugInfo({ 
-          error: `Table error: ${tableError.message}`,
-          code: tableError.code,
-          details: tableError.details 
-        });
-        return;
-      }
-      
-      // Check total count of integration records
-      const { count: totalCount, error: countError } = await supabase
-        .from('integrations')
-        .select('*', { count: 'exact', head: true });
-      
-      // Check user's integration records
-      const { data: userIntegrations, error: userIntegrationsError } = await supabase
-        .from('integrations')
-        .select('*')
-        .eq('user_id', user.id);
-      
-      // Check structure of table
-      const { data: tableInfo, error: infoError } = await supabase
-        .rpc('get_table_info', { table_name: 'integrations' });
-      
-      setDebugInfo({
-        user: { id: user.id, email: user.email },
-        tableExists: tableExists && tableExists.length > 0,
-        tableCount: totalCount || 0,
-        countError: countError,
-        userIntegrations: userIntegrations || [],
-        userIntegrationsError: userIntegrationsError,
-        tableInfo: tableInfo,
-        infoError: infoError
-      });
-      
-      setShowDebug(true);
-      
-    } catch (error) {
-      setDebugInfo({ error: `Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}` });
     }
   };
 
@@ -297,20 +237,87 @@ function IntegrationsContent() {
             });
           }
 
-          // Sync files
-          const response = await fetch('https://www.googleapis.com/drive/v3/files', {
-            headers: {
-              'Authorization': `Bearer ${integration.settings?.tokens?.access_token}`,
-            },
-          });
-
-          if (!response.ok) throw new Error('Failed to sync files');
+          // Get the latest files that need to be synced
+          const { data: files } = await supabase
+            .from('transcriptions')
+            .select('*')
+            .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+            .is('synced_to_drive', false)
+            .limit(5);
+          
+          if (!files || files.length === 0) {
+            setInfo('No new files to sync with Google Drive');
+            return;
+          }
+          
+          // Sync each file to Google Drive
+          for (const file of files) {
+            try {
+              // Log the file information for debugging
+              console.log(`Preparing to sync file: ${JSON.stringify({
+                id: file.id,
+                file_name: file.file_name,
+                transcription_text: file.transcription_text ? `${file.transcription_text.substring(0, 50)}...` : null
+              })}`);
+              
+              // Make sure we have content to sync
+              if (!file.transcription_text) {
+                console.log(`Skipping file ${file.id} - No transcription text available`);
+                continue;
+              }
+              
+              // Create a Blob from the transcription text
+              const transcriptionBlob = new Blob([file.transcription_text], { type: 'text/plain' });
+              
+              // Convert the Blob to a base64 string for sending to the API
+              const reader = new FileReader();
+              const textBase64 = await new Promise<string>((resolve) => {
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(transcriptionBlob);
+              });
+              
+              // Get the filename from the record or generate one
+              const fileName = file.file_name || `transcript_${file.id}.txt`;
+              
+              const syncResponse = await fetch('/api/integrations/google-drive/sync', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  fileId: file.id,
+                  fileName: fileName,
+                  fileType: 'text/plain',
+                  fileUrl: textBase64
+                }),
+              });
+              
+              if (!syncResponse.ok) {
+                const errorData = await syncResponse.json();
+                console.error(`Error syncing file ${file.id}:`, errorData);
+                throw new Error(errorData.error || 'Failed to sync file with Google Drive');
+              }
+              
+              // Mark file as synced
+              await supabase
+                .from('transcriptions')
+                .update({ synced_to_drive: true })
+                .eq('id', file.id);
+                
+              console.log(`Successfully synced file: ${file.id}`);
+            } catch (error) {
+              console.error(`Error syncing file ${file.id}:`, error);
+              // Continue with the next file instead of stopping the entire process
+            }
+          }
 
           // Update last sync time
           await handleUpdateSettings(integration, {
             ...integration.settings,
             last_sync: new Date().toISOString()
           });
+          
+          setInfo(`Successfully synced ${files.length} files to Google Drive`);
           break;
         // Add other providers here
       }
@@ -318,7 +325,7 @@ function IntegrationsContent() {
       await fetchIntegrations();
     } catch (error) {
       console.error('Error syncing integration:', error);
-      setError('Failed to sync with ' + integration.provider);
+      setError(`Error syncing integration: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
@@ -340,55 +347,21 @@ function IntegrationsContent() {
             </div>
             <div className="ml-3">
               <p className="text-sm text-red-700">{error}</p>
-              {process.env.NODE_ENV !== 'production' && (
-                <details className="mt-2">
-                  <summary className="text-sm text-gray-700 cursor-pointer">Debug Info</summary>
-                  <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-40">
-                    {JSON.stringify(integrations, null, 2)}
-                  </pre>
-                </details>
-              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Add debug button */}
-      {process.env.NODE_ENV !== 'production' && (
-        <div className="mb-4 flex space-x-2">
-          <button
-            onClick={checkDatabaseState}
-            className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-          >
-            Debug Database
-          </button>
-          
-          <a
-            href="/api/integrations/debug"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            Advanced Debug
-          </a>
-          
-          <a
-            href="/api/integrations/supabase-rls"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-          >
-            Debug RLS Policies
-          </a>
-          
-          {showDebug && debugInfo && (
-            <div className="mt-2 p-4 bg-gray-50 rounded border border-gray-200">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Database Debug Info</h4>
-              <pre className="text-xs bg-gray-100 p-2 rounded overflow-auto max-h-80">
-                {JSON.stringify(debugInfo, null, 2)}
-              </pre>
+      {info && (
+        <div className="mb-4 bg-green-50 border-l-4 border-green-400 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <CheckCircle className="h-5 w-5 text-green-400" />
             </div>
-          )}
+            <div className="ml-3">
+              <p className="text-sm text-green-700">{info}</p>
+            </div>
+          </div>
         </div>
       )}
 
