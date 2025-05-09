@@ -219,33 +219,88 @@ export default function TranscribePage() {
     setError(null);
     
     try {
-      // Create a FormData object to send the file
-      const formData = new FormData();
-      formData.append('file', file);
+      // Get auth token for the request
+      const supabase = createClientComponentClient<Database>();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
       
-      // Use fetch with AbortController for upload progress tracking
-      const controller = new AbortController();
-      const signal = controller.signal;
+      if (!token) {
+        throw new Error('Authentication required');
+      }
       
-      const response = await fetch('/api/transcribe', {
+      // Create a ReadableStream from the file
+      const fileStream = file.stream();
+      
+      // Create a progress-tracking wrapper around the stream
+      const totalSize = file.size;
+      let loadedSize = 0;
+      
+      // Set up a transform stream to track progress
+      const progressStream = new TransformStream({
+        transform(chunk, controller) {
+          loadedSize += chunk.length;
+          const progress = Math.round((loadedSize / totalSize) * 100);
+          setUploadProgress(progress);
+          controller.enqueue(chunk);
+        }
+      });
+      
+      // Pipe the file through our progress tracker
+      const trackedStream = fileStream.pipeThrough(progressStream);
+      
+      // Stream the file to our API
+      const response = await fetch('/api/stream-upload', {
         method: 'POST',
-        body: formData,
-        signal,
+        headers: {
+          'Content-Type': file.type,
+          'X-File-Name': file.name,
+          'Authorization': `Bearer ${token}`
+        },
+        body: trackedStream,
+        // Don't set duplex: 'half' as it's not supported in some browsers
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to upload file');
+        let errorText = 'Failed to upload file';
+        try {
+          const errorData = await response.json();
+          errorText = errorData.error || errorText;
+        } catch (e) {
+          console.error('Failed to parse error response:', e);
+        }
+        throw new Error(errorText);
       }
       
-      const data = await response.json();
+      const { url: audioUrl, fileName } = await response.json();
+      
+      // Now start the transcription job with the audio URL
+      const transcribeResponse = await fetch('/api/transcribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          audio_url: audioUrl,
+          file_name: fileName || file.name,
+          file_type: file.type,
+          file_size: file.size,
+          duration_seconds: audioDuration
+        }),
+      });
+      
+      if (!transcribeResponse.ok) {
+        const errorData = await transcribeResponse.json();
+        throw new Error(errorData.error || 'Transcription failed');
+      }
+      
+      const data = await transcribeResponse.json();
       setTranscriptionId(data.transcriptionId);
       
       // Redirect to the results page
-      router.push(`/dashboard/transcription/${data.transcriptionId}`);
+      router.push(`/dashboard/transcript/${data.transcriptionId}`);
     } catch (err: any) {
-      console.error('Upload error:', err);
-      setError(err.message || 'Failed to upload file');
+      console.error('Upload or transcription error:', err);
+      setError(err.message || 'Failed to process your audio file');
       setIsUploading(false);
     }
   };
