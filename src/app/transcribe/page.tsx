@@ -238,40 +238,27 @@ export default function TranscribePage() {
       
       console.log('[CLIENT] Auth token retrieved, length:', token.length);
       
-      // Create a ReadableStream from the file
-      console.log('[CLIENT] Creating stream from file');
-      const fileStream = file.stream();
+      // Check if file is larger than 5MB
+      const isLargeFile = file.size > 5 * 1024 * 1024; // 5MB
+      let audioUrl;
       
-      // Create a progress-tracking wrapper around the stream
-      const totalSize = file.size;
-      let loadedSize = 0;
-      
-      console.log('[CLIENT] Setting up progress tracking stream');
-      // Set up a transform stream to track progress
-      const progressStream = new TransformStream({
-        transform(chunk, controller) {
-          loadedSize += chunk.length;
-          const progress = Math.round((loadedSize / totalSize) * 100);
-          setUploadProgress(progress);
-          controller.enqueue(chunk);
-        }
-      });
-      
-      // Pipe the file through our progress tracker
-      const trackedStream = fileStream.pipeThrough(progressStream);
-      
-      console.log('[CLIENT] Initiating streaming upload to /api/stream-upload');
-      // Stream the file to our API
-      try {
-        const response = await fetch('/api/stream-upload', {
+      if (isLargeFile) {
+        console.log('[CLIENT] Large file detected, using chunked upload');
+        audioUrl = await uploadLargeFile(file, token, setUploadProgress);
+      } else {
+        // For smaller files, use the standard upload approach
+        console.log('[CLIENT] Small file detected, using standard upload');
+        
+        // Create a ReadableStream from the file
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch('/api/upload', {
           method: 'POST',
           headers: {
-            'Content-Type': file.type,
-            'X-File-Name': file.name,
             'Authorization': `Bearer ${token}`
           },
-          body: trackedStream,
-          // Don't set duplex: 'half' as it's not supported in some browsers
+          body: formData,
         });
         
         console.log('[CLIENT] Upload response status:', response.status);
@@ -290,46 +277,43 @@ export default function TranscribePage() {
         
         const responseData = await response.json();
         console.log('[CLIENT] Upload successful, response:', responseData);
-        const { url: audioUrl, fileName } = responseData;
-        
-        console.log('[CLIENT] Starting transcription with audio URL:', audioUrl);
-        // Now start the transcription job with the audio URL
-        const transcribeResponse = await fetch('/api/transcribe', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            audio_url: audioUrl,
-            file_name: fileName || file.name,
-            file_type: file.type,
-            file_size: file.size,
-            duration_seconds: audioDuration
-          }),
-        });
-        
-        console.log('[CLIENT] Transcription response status:', transcribeResponse.status);
-        
-        if (!transcribeResponse.ok) {
-          const errorData = await transcribeResponse.json();
-          console.error('[CLIENT] Transcription failed with error:', errorData);
-          throw new Error(errorData.error || 'Transcription failed');
-        }
-        
-        const data = await transcribeResponse.json();
-        console.log('[CLIENT] Transcription successful, ID:', data.transcriptionId);
-        setTranscriptionId(data.transcriptionId);
-        
-        // Redirect to the results page
-        router.push(`/dashboard/transcript/${data.transcriptionId}`);
-      } catch (fetchError: any) {
-        console.error('[CLIENT] Fetch error during upload/transcription:', {
-          message: fetchError.message,
-          name: fetchError.name,
-          stack: fetchError.stack
-        });
-        throw fetchError;
+        audioUrl = responseData.url;
       }
+      
+      if (!audioUrl) {
+        throw new Error('Failed to get audio URL after upload');
+      }
+      
+      console.log('[CLIENT] Starting transcription with audio URL:', audioUrl);
+      // Now start the transcription job with the audio URL
+      const transcribeResponse = await fetch('/api/transcribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          audio_url: audioUrl,
+          file_name: file.name,
+          file_type: file.type,
+          file_size: file.size,
+          duration_seconds: audioDuration
+        }),
+      });
+      
+      console.log('[CLIENT] Transcription response status:', transcribeResponse.status);
+      
+      if (!transcribeResponse.ok) {
+        const errorData = await transcribeResponse.json();
+        console.error('[CLIENT] Transcription failed with error:', errorData);
+        throw new Error(errorData.error || 'Transcription failed');
+      }
+      
+      const data = await transcribeResponse.json();
+      console.log('[CLIENT] Transcription successful, ID:', data.transcriptionId);
+      setTranscriptionId(data.transcriptionId);
+      
+      // Redirect to the results page
+      router.push(`/dashboard/transcript/${data.transcriptionId}`);
     } catch (err: any) {
       console.error('[CLIENT] Upload or transcription error:', {
         message: err.message,
@@ -339,6 +323,71 @@ export default function TranscribePage() {
       setError(err.message || 'Failed to process your audio file');
       setIsUploading(false);
     }
+  };
+
+  // Function to handle large file uploads using chunks
+  const uploadLargeFile = async (file: File, token: string, progressCallback: (progress: number) => void): Promise<string> => {
+    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    let uploadUrl = '';
+    
+    console.log(`[CLIENT] Uploading file in ${totalChunks} chunks of ${CHUNK_SIZE / (1024 * 1024)}MB each`);
+    
+    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+      // Calculate chunk boundaries
+      const start = chunkIndex * CHUNK_SIZE;
+      const end = Math.min(file.size, start + CHUNK_SIZE);
+      
+      // Slice the file to get the chunk
+      const chunk = file.slice(start, end);
+      
+      // Create form data for this chunk
+      const formData = new FormData();
+      formData.append('chunk', chunk);
+      formData.append('chunkIndex', chunkIndex.toString());
+      formData.append('totalChunks', totalChunks.toString());
+      formData.append('fileName', file.name);
+      formData.append('fileType', file.type);
+      
+      // If we have an upload URL from a previous chunk, include it
+      if (uploadUrl) {
+        formData.append('uploadId', uploadUrl);
+      }
+      
+      try {
+        const response = await fetch('/api/chunked-upload', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Failed to upload chunk ${chunkIndex + 1}/${totalChunks}`);
+        }
+        
+        const data = await response.json();
+        
+        // Save the upload URL from the first chunk
+        if (chunkIndex === 0) {
+          uploadUrl = data.uploadUrl;
+        }
+        
+        // Update progress
+        const progress = Math.round(((chunkIndex + 1) / totalChunks) * 100);
+        progressCallback(progress);
+        
+        console.log(`[CLIENT] Chunk ${chunkIndex + 1}/${totalChunks} uploaded successfully (${progress}%)`);
+      } catch (error: any) {
+        console.error(`[CLIENT] Error uploading chunk ${chunkIndex + 1}/${totalChunks}:`, error);
+        throw new Error(`Chunk upload failed: ${error.message}`);
+      }
+    }
+    
+    console.log('[CLIENT] All chunks uploaded successfully');
+    return uploadUrl;
   };
 
   // Simulate upload progress

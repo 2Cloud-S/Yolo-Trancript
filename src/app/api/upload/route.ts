@@ -96,4 +96,12 @@ export async function OPTIONS(request: Request) {
       'Access-Control-Max-Age': '86400',
     },
   });
-} 
+}
+
+// Configure API route to handle larger file uploads
+export const config = {
+  api: {
+    bodyParser: false,
+    responseLimit: '50mb',
+  },
+}; 
