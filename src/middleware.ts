@@ -1,52 +1,24 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-// CORS headers for API routes
-const corsHeaders = {
-  'Access-Control-Allow-Credentials': 'true',
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,OPTIONS,PATCH,DELETE,POST,PUT',
-  'Access-Control-Allow-Headers': 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization',
-};
-
 export async function middleware(request: NextRequest) {
   // Parse the URL to check the path
   const url = new URL(request.url);
   const path = url.pathname;
   
-  // Create the response object
+  // Exclude webhook endpoints from middleware processing
+  // These need to be accessible by external services without authentication
+  if (path.startsWith('/api/webhook') || path === '/webhook-test') {
+    console.log(`[Middleware] Skipping middleware for webhook endpoint: ${path}`);
+    return NextResponse.next();
+  }
+  
   let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   });
 
-  // Add CORS headers for API routes
-  if (path.startsWith('/api/')) {
-    // Set CORS headers to allow all origins
-    Object.entries(corsHeaders).forEach(([key, value]) => {
-      response.headers.set(key, value);
-    });
-    
-    console.log(`[Middleware] Adding CORS headers for API route: ${path}`);
-    
-    // Handle OPTIONS requests for CORS preflight
-    if (request.method === 'OPTIONS') {
-      console.log(`[Middleware] Handling OPTIONS preflight for: ${path}`);
-      return new NextResponse(null, { 
-        status: 200, 
-        headers: corsHeaders 
-      });
-    }
-  }
-  
-  // Exclude webhook endpoints from middleware processing
-  // These need to be accessible by external services without authentication
-  if (path.startsWith('/api/webhook') || path === '/webhook-test') {
-    console.log(`[Middleware] Skipping middleware for webhook endpoint: ${path}`);
-    return response;
-  }
-  
   // Check if it's a protected route
   const isProtectedRoute = path.startsWith('/dashboard') || 
                            path.startsWith('/transcribe');
