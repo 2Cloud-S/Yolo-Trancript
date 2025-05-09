@@ -17,6 +17,13 @@ export async function POST(request: Request) {
   console.log('[API/UPLOAD] Starting file upload process');
   
   try {
+    // Add CORS headers for browser fetch requests
+    const headers = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
+    
     // First try to get the form data
     let file: File | null = null;
     try {
@@ -27,7 +34,7 @@ export async function POST(request: Request) {
         console.error('[API/UPLOAD] No file provided in form data');
         return NextResponse.json(
           { error: 'No file provided' },
-          { status: 400 }
+          { status: 400, headers }
         );
       }
       
@@ -40,7 +47,16 @@ export async function POST(request: Request) {
       console.error('[API/UPLOAD] Error parsing form data:', formError);
       return NextResponse.json(
         { error: 'Invalid form data: ' + (formError instanceof Error ? formError.message : 'Unknown error') },
-        { status: 400 }
+        { status: 400, headers }
+      );
+    }
+    
+    // For files larger than 4.5MB, return an error suggesting to use chunked upload
+    if (file.size > 4.5 * 1024 * 1024) {
+      console.error('[API/UPLOAD] File too large for direct upload:', file.size);
+      return NextResponse.json(
+        { error: 'File size exceeds limit. Please use chunked upload for files larger than 4.5MB.' },
+        { status: 413, headers }
       );
     }
     
@@ -54,7 +70,7 @@ export async function POST(request: Request) {
       console.error('[API/UPLOAD] Error converting file to buffer:', bufferError);
       return NextResponse.json(
         { error: 'Failed to process file: ' + (bufferError instanceof Error ? bufferError.message : 'Unknown error') },
-        { status: 500 }
+        { status: 500, headers }
       );
     }
     
@@ -67,7 +83,7 @@ export async function POST(request: Request) {
       console.error('[API/UPLOAD] AssemblyAI upload error:', uploadError);
       return NextResponse.json(
         { error: 'Failed to upload to transcription service: ' + (uploadError.message || 'Unknown error') },
-        { status: 500 }
+        { status: 500, headers }
       );
     }
     
@@ -75,12 +91,19 @@ export async function POST(request: Request) {
       url: uploadUrl,
       fileName: file.name,
       success: true
-    });
+    }, { headers });
   } catch (error: any) {
     console.error('[API/UPLOAD] Unexpected error:', error);
     return NextResponse.json(
       { error: 'Upload failed: ' + (error.message || 'Unknown error') },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        }
+      }
     );
   }
 }
@@ -98,10 +121,11 @@ export async function OPTIONS(request: Request) {
   });
 }
 
-// Configure API route to handle larger file uploads
+// Configure API route to handle file uploads - note that in Next.js App Router
+// this config needs to be handled differently
 export const config = {
   api: {
     bodyParser: false,
-    responseLimit: '50mb',
+    responseLimit: false,
   },
 }; 

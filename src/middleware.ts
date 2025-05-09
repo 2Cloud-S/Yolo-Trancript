@@ -1,6 +1,14 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+// CORS headers for API routes
+const corsHeaders = {
+  'Access-Control-Allow-Credentials': 'true',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,OPTIONS,PATCH,DELETE,POST,PUT',
+  'Access-Control-Allow-Headers': 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization',
+};
+
 export async function middleware(request: NextRequest) {
   // Parse the URL to check the path
   const url = new URL(request.url);
@@ -15,18 +23,20 @@ export async function middleware(request: NextRequest) {
 
   // Add CORS headers for API routes
   if (path.startsWith('/api/')) {
-    // Set CORS headers to allow all origins (or set specific origins in production)
-    response.headers.set('Access-Control-Allow-Credentials', 'true');
-    response.headers.set('Access-Control-Allow-Origin', '*');
-    response.headers.set('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    response.headers.set('Access-Control-Allow-Headers', 
-      'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
+    // Set CORS headers to allow all origins
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
     
     console.log(`[Middleware] Adding CORS headers for API route: ${path}`);
     
     // Handle OPTIONS requests for CORS preflight
     if (request.method === 'OPTIONS') {
-      return new NextResponse(null, { status: 200, headers: response.headers });
+      console.log(`[Middleware] Handling OPTIONS preflight for: ${path}`);
+      return new NextResponse(null, { 
+        status: 200, 
+        headers: corsHeaders 
+      });
     }
   }
   

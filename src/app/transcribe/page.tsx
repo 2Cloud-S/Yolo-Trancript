@@ -238,8 +238,10 @@ export default function TranscribePage() {
       
       console.log('[CLIENT] Auth token retrieved, length:', token.length);
       
-      // Check if file is larger than 5MB
-      const isLargeFile = file.size > 5 * 1024 * 1024; // 5MB
+      // For Vercel's serverless functions, reduce chunk size for large files
+      // We'll use 2MB chunks which is safer for Vercel's payload limits
+      const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB
+      const isLargeFile = file.size > CHUNK_SIZE; // Use chunked upload for files larger than 2MB
       let audioUrl;
       
       if (isLargeFile) {
@@ -269,15 +271,36 @@ export default function TranscribePage() {
             const errorData = await response.json();
             console.error('[CLIENT] Upload failed with server error:', errorData);
             errorText = errorData.error || errorText;
+            
+            // If we got a 413 error (payload too large), try chunked upload
+            if (response.status === 413) {
+              console.log('[CLIENT] Payload too large, switching to chunked upload');
+              audioUrl = await uploadLargeFile(file, token, setUploadProgress);
+              // If we got an audioUrl, continue with transcription
+              if (audioUrl) {
+                // Skip to transcription step
+                console.log('[CLIENT] Successfully switched to chunked upload, continuing with transcription');
+              } else {
+                throw new Error('Failed to upload file in chunks');
+              }
+            } else {
+              // For other errors, throw the error
+              throw new Error(errorText);
+            }
           } catch (e) {
-            console.error('[CLIENT] Failed to parse error response:', e);
+            if (audioUrl) {
+              // If we have an audioUrl from the chunked upload fallback, continue
+              console.log('[CLIENT] Using audioUrl from chunked upload fallback');
+            } else {
+              console.error('[CLIENT] Failed to parse error response or chunked upload failed:', e);
+              throw new Error(errorText);
+            }
           }
-          throw new Error(errorText);
+        } else {
+          const responseData = await response.json();
+          console.log('[CLIENT] Upload successful, response:', responseData);
+          audioUrl = responseData.url;
         }
-        
-        const responseData = await response.json();
-        console.log('[CLIENT] Upload successful, response:', responseData);
-        audioUrl = responseData.url;
       }
       
       if (!audioUrl) {
@@ -327,9 +350,11 @@ export default function TranscribePage() {
 
   // Function to handle large file uploads using chunks
   const uploadLargeFile = async (file: File, token: string, progressCallback: (progress: number) => void): Promise<string> => {
-    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
+    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks for Vercel's payload limits
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     let uploadUrl = '';
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
     
     console.log(`[CLIENT] Uploading file in ${totalChunks} chunks of ${CHUNK_SIZE / (1024 * 1024)}MB each`);
     
@@ -354,35 +379,71 @@ export default function TranscribePage() {
         formData.append('uploadId', uploadUrl);
       }
       
-      try {
-        const response = await fetch('/api/chunked-upload', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          body: formData
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `Failed to upload chunk ${chunkIndex + 1}/${totalChunks}`);
+      let success = false;
+      retryCount = 0;
+      
+      while (!success && retryCount < MAX_RETRIES) {
+        try {
+          const response = await fetch('/api/chunked-upload', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            },
+            body: formData
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error(`[CLIENT] Error uploading chunk ${chunkIndex + 1}/${totalChunks}:`, errorData);
+            
+            if (response.status === 413) {
+              // If payload too large and this is the first chunk, we can't proceed
+              if (chunkIndex === 0) {
+                throw new Error('First chunk exceeds size limit. Please use a smaller file or reduce chunk size.');
+              }
+              // For other chunks, we can retry with a smaller chunk size
+              throw new Error(`Chunk ${chunkIndex + 1} exceeds size limit. Please reduce chunk size.`);
+            }
+            
+            // For 429 (rate limiting) or 5xx errors, we'll retry
+            if (response.status === 429 || response.status >= 500) {
+              retryCount++;
+              // Exponential backoff
+              const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
+              console.log(`[CLIENT] Retrying chunk ${chunkIndex + 1} in ${delay}ms (attempt ${retryCount})`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              continue;
+            }
+            
+            throw new Error(errorData.error || `Failed to upload chunk ${chunkIndex + 1}/${totalChunks}`);
+          }
+          
+          const data = await response.json();
+          
+          // Save the upload URL from the first chunk
+          if (chunkIndex === 0) {
+            uploadUrl = data.uploadUrl;
+          }
+          
+          // Update progress
+          const progress = Math.round(((chunkIndex + 1) / totalChunks) * 100);
+          progressCallback(progress);
+          
+          console.log(`[CLIENT] Chunk ${chunkIndex + 1}/${totalChunks} uploaded successfully (${progress}%)`);
+          success = true;
+        } catch (error: any) {
+          retryCount++;
+          console.error(`[CLIENT] Error uploading chunk ${chunkIndex + 1}/${totalChunks} (attempt ${retryCount}):`, error);
+          
+          if (retryCount >= MAX_RETRIES) {
+            throw new Error(`Failed to upload chunk ${chunkIndex + 1}: ${error.message}`);
+          }
+          
+          // Wait before retrying
+          const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
+          console.log(`[CLIENT] Retrying chunk ${chunkIndex + 1} in ${delay}ms`);
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
-        
-        const data = await response.json();
-        
-        // Save the upload URL from the first chunk
-        if (chunkIndex === 0) {
-          uploadUrl = data.uploadUrl;
-        }
-        
-        // Update progress
-        const progress = Math.round(((chunkIndex + 1) / totalChunks) * 100);
-        progressCallback(progress);
-        
-        console.log(`[CLIENT] Chunk ${chunkIndex + 1}/${totalChunks} uploaded successfully (${progress}%)`);
-      } catch (error: any) {
-        console.error(`[CLIENT] Error uploading chunk ${chunkIndex + 1}/${totalChunks}:`, error);
-        throw new Error(`Chunk upload failed: ${error.message}`);
       }
     }
     
