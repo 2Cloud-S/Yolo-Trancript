@@ -11,13 +11,15 @@ interface CreditPurchaseButtonProps {
   packageName: string;
   className?: string;
   children?: React.ReactNode;
+  mode?: 'redirect' | 'direct'; // 'redirect' sends to checkout page, 'direct' opens Paddle
 }
 
 export default function CreditPurchaseButton({
   priceId,
   packageName,
   className = '',
-  children = `Buy ${packageName}`
+  children = `Buy ${packageName}`,
+  mode = 'redirect'
 }: CreditPurchaseButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isPaddleReady, setIsPaddleReady] = useState(false);
@@ -146,10 +148,11 @@ export default function CreditPurchaseButton({
       setError(null);
       setDebugInfo(null);
       
-      // If user is not logged in, redirect to login
+      // If user is not logged in, redirect to login with return URL to checkout
       if (!user) {
         logInfo('User not authenticated, redirecting to login');
-        router.push('/auth/login');
+        const returnUrl = encodeURIComponent(`/dashboard/checkout?priceId=${priceId}&packageName=${packageName}`);
+        router.push(`/auth/login?returnUrl=${returnUrl}`);
         return;
       }
 
@@ -165,23 +168,31 @@ export default function CreditPurchaseButton({
         setDebugInfo(`Warning: Price ID ${priceId} could not be verified. This may cause checkout to fail.`);
       }
 
+      // If in redirect mode, send to dashboard checkout page
+      if (mode === 'redirect') {
+        logInfo(`Redirecting to checkout page for ${packageName} (${priceId}) for user ${user.email}`);
+        router.push(`/dashboard/checkout?priceId=${priceId}&packageName=${packageName}`);
+        return;
+      }
+      
+      // If in direct mode, open Paddle checkout directly (used on checkout page)
+      logInfo(`Opening direct Paddle checkout for ${packageName} (${priceId}) for user ${user.email}`);
+      
       // Ensure Paddle is ready
       if (!isPaddleReady) {
         logInfo('Paddle not ready, initializing...');
         try {
-        const paddle = await initPaddle();
-        if (!paddle) {
-          throw new Error('Failed to initialize Paddle');
-        }
-        setIsPaddleReady(true);
+          const paddle = await initPaddle();
+          if (!paddle) {
+            throw new Error('Failed to initialize Paddle');
+          }
+          setIsPaddleReady(true);
         } catch (initError: any) {
           setError('Failed to initialize payment system. Please try again.');
           setDebugInfo(`Init error: ${initError.message}`);
           throw initError;
         }
       }
-
-      logInfo(`Initiating purchase for ${packageName} (${priceId}) for user ${user.email}`);
       
       // Use the standard checkout with better error handling
       try {
@@ -209,7 +220,7 @@ export default function CreditPurchaseButton({
         }, 10000);
         
         const result = await openCheckout(priceId, user.email);
-      
+        
         if (!result) {
           logInfo('openCheckout returned null or undefined, but checkout may still open');
           // Don't show error immediately, give checkout iframe time to appear
@@ -250,9 +261,6 @@ export default function CreditPurchaseButton({
       logError('Error during checkout process:', error);
       setError(error?.message || 'There was a problem initiating the checkout. Please try again.');
     } finally {
-      // In most cases, we want to set loading to false here
-      // But for the null/undefined result case with delayed error handling,
-      // we've already returned early and the timeout will handle it
       setIsLoading(false);
     }
   };

@@ -153,6 +153,7 @@ export default function CheckoutPage() {
                   priceId={priceId || ''}
                   packageName={packageName || ''}
                   className="w-40 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800"
+                  mode="direct"
                 >
                   Complete Purchase
                 </CreditPurchaseButton>
