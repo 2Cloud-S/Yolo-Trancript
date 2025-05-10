@@ -5,6 +5,7 @@ import { initPaddle, openCheckout } from '@/lib/paddle/client';
 import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/types/supabase';
 import { useRouter } from 'next/navigation';
+import { trackCreditPurchase } from '@/lib/analytics';
 
 interface CreditPurchaseButtonProps {
   priceId: string;
@@ -168,6 +169,9 @@ export default function CreditPurchaseButton({
         setDebugInfo(`Warning: Price ID ${priceId} could not be verified. This may cause checkout to fail.`);
       }
 
+      // Track the credit purchase initiation
+      trackCreditPurchase(packageName, 0);
+
       // If in redirect mode, send to dashboard checkout page
       if (mode === 'redirect') {
         logInfo(`Redirecting to checkout page for ${packageName} (${priceId}) for user ${user.email}`);
@@ -175,87 +179,34 @@ export default function CreditPurchaseButton({
         return;
       }
       
-      // If in direct mode, open Paddle checkout directly (used on checkout page)
-      logInfo(`Opening direct Paddle checkout for ${packageName} (${priceId}) for user ${user.email}`);
-      
-      // Ensure Paddle is ready
-      if (!isPaddleReady) {
-        logInfo('Paddle not ready, initializing...');
+      // If in direct mode, open Paddle checkout immediately
+      if (mode === 'direct') {
         try {
+          logInfo(`Opening Paddle checkout for ${priceId}`);
           const paddle = await initPaddle();
+          
           if (!paddle) {
             throw new Error('Failed to initialize Paddle');
           }
-          setIsPaddleReady(true);
-        } catch (initError: any) {
-          setError('Failed to initialize payment system. Please try again.');
-          setDebugInfo(`Init error: ${initError.message}`);
-          throw initError;
-        }
-      }
-      
-      // Use the standard checkout with better error handling
-      try {
-        // Set a flag to track if we should show errors
-        let shouldShowError = true;
-        
-        // Add event listener for checkout appearing in DOM
-        const checkoutAppeared = () => {
-          shouldShowError = false; // Disable error if checkout appears
-          logInfo('Paddle checkout iframe detected in DOM');
-        };
-        
-        // Check for Paddle checkout iframe at intervals
-        const checkoutDetectionInterval = setInterval(() => {
-          const paddleFrames = document.querySelectorAll('iframe[name^="paddle_frame"]');
-          if (paddleFrames.length > 0) {
-            checkoutAppeared();
-            clearInterval(checkoutDetectionInterval);
-          }
-        }, 500);
-        
-        // Clear detection after 10 seconds regardless
-        setTimeout(() => {
-          clearInterval(checkoutDetectionInterval);
-        }, 10000);
-        
-        const result = await openCheckout(priceId, user.email);
-        
-        if (!result) {
-          logInfo('openCheckout returned null or undefined, but checkout may still open');
-          // Don't show error immediately, give checkout iframe time to appear
-          setTimeout(() => {
-            if (shouldShowError) {
-              setError('Failed to open checkout. Please try again or contact support.');
-              setDebugInfo('openCheckout returned null or undefined');
-            } else {
-              // Clear any loading state but don't show error if checkout appeared
-              setIsLoading(false);
-            }
-          }, 3000);
+          
+          paddle.Checkout.open({
+            items: [{ priceId, quantity: 1 }],
+            customer: user ? { email: user.email } : undefined,
+            successCallback: (data: any) => {
+              logInfo('Purchase completed successfully');
+              // Track successful purchase
+              trackCreditPurchase(packageName, 0);
+              window.location.reload();
+            },
+          });
+          
           return; // Exit early and let the timeout handle errors if needed
+        } catch (checkoutError: any) {
+          const errorMessage = checkoutError.message || 'Unknown error';
+          logError('Failed to open Paddle checkout:', errorMessage);
+          setDebugInfo(`Checkout error: ${errorMessage}`);
         }
-      } catch (checkoutError: any) {
-        const errorMessage = checkoutError.message || 'Unknown error';
-        setError(`Checkout error: ${errorMessage}`);
-        setDebugInfo(`Full error: ${JSON.stringify(checkoutError)}`);
-        throw checkoutError;
       }
-      
-      // Add event listener for successful purchase
-      const handlePurchaseSuccess = (event: any) => {
-        logInfo('Purchase completed successfully!');
-        logInfo(`Transaction data: ${JSON.stringify(event.detail?.data || {})}`);
-        // Refresh user credits or trigger UI update
-        router.refresh();
-      };
-      
-      window.addEventListener('paddle:purchase:success', handlePurchaseSuccess);
-      
-      // Cleanup the event listener after 5 minutes
-      setTimeout(() => {
-        window.removeEventListener('paddle:purchase:success', handlePurchaseSuccess);
-      }, 300000);
       
     } catch (error: any) {
       logError('Error during checkout process:', error);

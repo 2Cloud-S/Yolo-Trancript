@@ -4,6 +4,8 @@ import "./globals.css";
 import { Analytics } from '@vercel/analytics/react';
 import CookieConsentBanner from '@/components/CookieConsentBanner';
 import AuthProvider from '@/components/AuthProvider';
+import { GoogleAnalytics } from '@next/third-parties/google'
+import PageViewTracker from '@/components/Analytics';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -68,8 +70,9 @@ export default function RootLayout({
         <AuthProvider>
           {children}
           <CookieConsentBanner />
-          <Analytics />
+          <PageViewTracker />
         </AuthProvider>
+        <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID || ''} />
       </body>
     </html>
   );

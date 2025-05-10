@@ -11,6 +11,7 @@ import { CustomVocabulary } from '@/types/transcription';
 import CustomVocabularyManager from './CustomVocabularyManager';
 import Link from 'next/link';
 import { uploadFileDirectly } from '@/lib/assemblyai-direct';
+import { trackUpload, trackTranscriptionStart } from '@/lib/analytics';
 
 interface FileUploadProps {
   userId?: string;
@@ -285,6 +286,9 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
       // Use the first result from either promise
       const duration = await Promise.race([getDuration, durationTimeout]);
       
+      // Track file upload
+      trackUpload(file.type, file.size);
+      
       // Send transcription request as before
       const transcribeResponse = await fetch('/api/transcribe', {
         method: 'POST',
@@ -345,6 +349,12 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
       // Notify parent component
       if (onUploadComplete) {
         onUploadComplete();
+      }
+
+      // When transcription starts
+      if (response && response.transcriptId) {
+        // Track transcription start
+        trackTranscriptionStart(duration || 0);
       }
     } catch (err: any) {
       console.error('Error:', err);

@@ -8,6 +8,7 @@ import { Mail, Lock, AlertCircle, ArrowRight } from 'lucide-react';
 import EnvWarning from '@/components/EnvWarning';
 import YoloMascot from '@/components/YoloMascot';
 import GoogleLoginButton from '@/components/GoogleLoginButton';
+import { trackSignIn } from '@/lib/analytics';
 
 // Client component that uses useSearchParams
 function LoginForm() {
@@ -54,6 +55,9 @@ function LoginForm() {
         throw error;
       }
       
+      // Track successful login
+      trackSignIn('email_password');
+
       console.log('[LoginPage] Login successful, redirecting to:', redirectPath);
       router.push(redirectPath);
     } catch (err: any) {
