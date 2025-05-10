@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, Lock, AlertCircle, User, ArrowRight } from 'lucide-react';
 import EnvWarning from '@/components/EnvWarning';
 import YoloMascot from '@/components/YoloMascot';
+import GoogleLoginButton from '@/components/GoogleLoginButton';
 
 // Client component that uses useSearchParams
 function RegisterForm() {
@@ -134,17 +135,32 @@ function RegisterForm() {
             )}
           </button>
         </div>
-      
-        <div className="mt-6 flex items-center justify-center">
-          <span className="text-sm text-gray-600">Already have an account?</span>
-          <Link
-            href={returnUrl ? `/auth/login?returnUrl=${encodeURIComponent(returnUrl)}` : "/auth/login"}
-            className="ml-2 text-sm font-medium text-[#06B6D4] hover:underline"
-          >
-            Sign in
-          </Link>
-        </div>
       </form>
+
+      <div className="mt-6">
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white text-gray-500">Or continue with</span>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <GoogleLoginButton />
+        </div>
+      </div>
+      
+      <div className="mt-6 flex items-center justify-center">
+        <span className="text-sm text-gray-600">Already have an account?</span>
+        <Link
+          href={returnUrl ? `/auth/login?returnUrl=${encodeURIComponent(returnUrl)}` : "/auth/login"}
+          className="ml-2 text-sm font-medium text-[#06B6D4] hover:underline"
+        >
+          Sign in
+        </Link>
+      </div>
     </div>
   );
 }

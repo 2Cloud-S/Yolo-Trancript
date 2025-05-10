@@ -1,20 +1,45 @@
+import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
-  const requestUrl = new URL(request.url);
-  const code = requestUrl.searchParams.get('code');
-  
-  // Get redirect path from search params, checking both returnUrl and redirect
-  const returnUrl = requestUrl.searchParams.get('returnUrl');
-  const redirect = requestUrl.searchParams.get('redirect');
-  const redirectPath = returnUrl || redirect || '/dashboard';
+export async function GET(request: Request) {
+  try {
+    const { searchParams, origin } = new URL(request.url);
+    const code = searchParams.get('code');
+    
+    // if "next" is in param, use it as the redirect URL
+    const next = searchParams.get('next') ?? '/dashboard';
+    
+    if (!code) {
+      console.error('No code in request');
+      return NextResponse.redirect(`${origin}/auth/error?error=missing_code`);
+    }
 
-  if (code) {
     const supabase = await createClient();
-    await supabase.auth.exchangeCodeForSession(code);
-  }
+    
+    // Exchange the code for a session
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    
+    if (error) {
+      console.error('Error exchanging code for session:', error);
+      return NextResponse.redirect(`${origin}/auth/error?error=${error.message}`);
+    }
 
-  // URL to redirect to after sign in process completes
-  return NextResponse.redirect(new URL(redirectPath, request.url));
+    // Determine the correct redirect URL based on environment
+    const forwardedHost = request.headers.get('x-forwarded-host');
+    const isLocalEnv = process.env.NODE_ENV === 'development';
+    
+    if (isLocalEnv) {
+      // Local development - no load balancer
+      return NextResponse.redirect(`${origin}${next}`);
+    } else if (forwardedHost) {
+      // Production with load balancer
+      return NextResponse.redirect(`https://${forwardedHost}${next}`);
+    } else {
+      // Production without load balancer
+      return NextResponse.redirect(`${origin}${next}`);
+    }
+  } catch (error) {
+    console.error('Unexpected error in callback route:', error);
+    return NextResponse.redirect(`${origin}/auth/error?error=unexpected_error`);
+  }
 } 
