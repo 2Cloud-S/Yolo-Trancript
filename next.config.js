@@ -11,6 +11,12 @@ const nextConfig = {
   // Increase static page generation timeout to 180 seconds (3 minutes)
   staticPageGenerationTimeout: 180,
   
+  // Experimental features
+  experimental: {
+    // Increase proxy timeout to prevent socket hang up errors during build
+    proxyTimeout: 120000, // 2 minutes
+  },
+  
   // Define explicit rewrites to handle both webhook URL patterns
   async rewrites() {
     return [

@@ -61,6 +61,12 @@ export default function Home() {
                     Pricing
                   </Link>
                   <Link
+                    href="/blog"
+                    className="text-gray-900 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    Blog
+                  </Link>
+                  <Link
                     href="/auth/login?redirect=/dashboard"
                     className="text-gray-900 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium"
                   >
@@ -419,6 +425,7 @@ export default function Home() {
                 {[
                   { name: 'Features', href: '/#features' },
                   { name: 'Pricing', href: '/pricing' },
+                  { name: 'Blog', href: '/blog' },
                   { name: 'FAQ', href: '/faq' }
                 ].map(item => (
                   <li key={item.name}>

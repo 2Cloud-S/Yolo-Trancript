@@ -12,7 +12,8 @@ import {
   Settings,
   Book,
   Plus,
-  LogIn
+  LogIn,
+  FileText
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import YoloMascot from '@/components/YoloMascot';
