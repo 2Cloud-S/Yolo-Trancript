@@ -169,6 +169,36 @@ export async function getTranscription(transcriptId: string): Promise<any> {
   return response.json();
 }
 
+// Function to update a specific utterance in a transcription
+export async function updateTranscriptionUtterance(
+  transcriptId: string,
+  utteranceId: string,
+  text: string
+): Promise<any> {
+  try {
+    const response = await fetch(`/api/transcription/${transcriptId}/utterance`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        utterance_id: utteranceId,
+        text
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Failed to update utterance: ${response.status}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Error updating utterance:', error);
+    throw error;
+  }
+}
+
 // Helper function to process sentiment data
 export function processSentimentData(sentimentData: any): {
   overall: string;

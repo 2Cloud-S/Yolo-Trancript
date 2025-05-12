@@ -1,22 +1,31 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { AssemblyAI } from 'assemblyai';
+import { createAdminClient } from '@/lib/supabase/admin-client';
+import { v4 as uuidv4 } from 'uuid';
+import { createClient } from '@/lib/supabase/server';
 
-// Create a Supabase admin client with service role key
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-// Initialize AssemblyAI client
-const assemblyai = new AssemblyAI({
-  apiKey: process.env.ASSEMBLY_API_KEY!
-});
-
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const formData = await request.formData();
+    // Create a server-side Supabase client
+    const supabase = await createClient();
+    const supabaseAdmin = createAdminClient();
+    
+    // Authenticate the user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
+    // Parse the form data
+    const formData = await req.formData();
     const file = formData.get('file') as File;
+    
+    // Get duration if available
+    const durationSeconds = formData.get('duration_seconds');
+    const duration = durationSeconds ? parseFloat(durationSeconds.toString()) : null;
     
     if (!file) {
       return NextResponse.json(
@@ -25,23 +34,68 @@ export async function POST(request: Request) {
       );
     }
     
-    // Get the file as an ArrayBuffer
-    const arrayBuffer = await file.arrayBuffer();
-    const fileBuffer = Buffer.from(arrayBuffer);
+    // Generate a unique filename
+    const filename = `${uuidv4()}-${file.name}`;
     
-    // Upload directly to AssemblyAI instead of Supabase Storage
-    const uploadUrl = await assemblyai.files.upload(fileBuffer);
+    // Upload the file to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabaseAdmin
+      .storage
+      .from('audio-uploads')
+      .upload(filename, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
     
-    console.log('File uploaded to AssemblyAI:', uploadUrl);
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      return NextResponse.json(
+        { error: 'Failed to upload file' },
+        { status: 500 }
+      );
+    }
+    
+    // Get a public URL for the file
+    const { data: publicUrl } = supabaseAdmin
+      .storage
+      .from('audio-uploads')
+      .getPublicUrl(filename);
+    
+    // Save the file metadata and duration to the database
+    const { data: fileRecord, error: dbError } = await supabaseAdmin
+      .from('files')
+      .insert({
+        user_id: user.id,
+        file_name: file.name,
+        storage_path: filename,
+        size_bytes: file.size,
+        type: file.type,
+        public_url: publicUrl.publicUrl,
+        duration: duration || 0,
+        upload_method: 'direct'
+      })
+      .select()
+      .single();
+    
+    if (dbError) {
+      console.error('Database error:', dbError);
+      return NextResponse.json(
+        { error: 'Failed to save file metadata' },
+        { status: 500 }
+      );
+    }
     
     return NextResponse.json({
-      url: uploadUrl,
-      fileName: file.name
+      id: fileRecord.id,
+      name: file.name,
+      type: file.type, 
+      size: file.size,
+      url: publicUrl.publicUrl,
+      duration: duration || 0
     });
-  } catch (error: any) {
-    console.error('Upload error:', error);
+  } catch (error) {
+    console.error('Server error:', error);
     return NextResponse.json(
-      { error: error.message || 'Upload failed' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

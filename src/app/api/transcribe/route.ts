@@ -27,6 +27,11 @@ function calculateCreditsNeeded(durationInSeconds: number): number {
 // Check transcription status and update database when completed
 async function scheduleTranscriptionStatusCheck(transcriptId: string, dbRecordId: string) {
   try {
+    // Quick initial check: Check almost immediately at 2 seconds
+    setTimeout(async () => {
+      await checkTranscriptionStatus(transcriptId, dbRecordId);
+    }, 2000);
+    
     // First check: Wait 20 seconds before first status check
     setTimeout(async () => {
       await checkTranscriptionStatus(transcriptId, dbRecordId);
@@ -131,18 +136,56 @@ export async function POST(req: Request) {
       }
     }
 
-    // Parse the request JSON
-    const requestData = await req.json();
-    const { 
-      audio_url, 
-      diarization_options, 
-      custom_vocabulary, 
-      sentiment_analysis, 
-      file_name,
-      file_size,
-      file_type,
-      duration_seconds
-    } = requestData;
+    // Check content type to determine if it's a FormData or JSON request
+    const contentType = req.headers.get('content-type') || '';
+    let audio_url, file_name, file_size, file_type, duration_seconds;
+    let diarization_options, custom_vocabulary, sentiment_analysis;
+    
+    if (contentType.includes('multipart/form-data')) {
+      // Handle FormData request (direct file upload)
+      const formData = await req.formData();
+      const file = formData.get('file') as File;
+      
+      if (!file) {
+        return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+      }
+      
+      // Get the duration from form data
+      const durationValue = formData.get('duration_seconds');
+      if (durationValue) {
+        duration_seconds = parseFloat(durationValue.toString());
+      } else {
+        // Set a default or estimate based on file size if duration not provided
+        duration_seconds = Math.floor(file.size / 16000); // Rough estimate for audio files
+      }
+      
+      // Upload the file to AssemblyAI
+      const arrayBuffer = await file.arrayBuffer();
+      const fileBuffer = Buffer.from(arrayBuffer);
+      audio_url = await assemblyai.files.upload(fileBuffer);
+      
+      file_name = file.name;
+      file_size = file.size;
+      file_type = file.type;
+      
+      // Set default options
+      diarization_options = { speakers_expected: 2 }; // Default speaker diarization
+      custom_vocabulary = [];
+      sentiment_analysis = false;
+    } else {
+      // Handle JSON request (API call with audio URL)
+      const requestData = await req.json();
+      ({ 
+        audio_url, 
+        diarization_options, 
+        custom_vocabulary, 
+        sentiment_analysis, 
+        file_name,
+        file_size,
+        file_type,
+        duration_seconds
+      } = requestData);
+    }
     
     if (!audio_url) {
       return NextResponse.json({ error: 'Missing audio URL' }, { status: 400 });
@@ -209,13 +252,14 @@ export async function POST(req: Request) {
         file_name: file_name || `transcript_${transcript.id}.json`,
         file_size: file_size || 0,
         file_type: file_type || 'audio/mpeg',
+        duration: Number(duration_seconds) || 0, // Store duration immediately from client
         metadata: {
           diarization_options,
           custom_vocabulary,
           sentiment_analysis,
-          duration_seconds,
+          duration_seconds: Number(duration_seconds) || 0,
           credits_used: creditsNeeded,
-          direct_upload: true // Flag to indicate this was a direct upload
+          direct_upload: contentType.includes('multipart/form-data') // Flag for upload method
         }
       })
       .select()

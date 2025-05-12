@@ -3,24 +3,29 @@
 import { useState, useEffect } from 'react';
 import { TranscriptSpeaker, TranscriptUtterance } from '@/types/transcription';
 import TranscriptionDisclaimer from '@/components/TranscriptionDisclaimer';
+import { PencilIcon, CheckIcon, XMarkIcon as XIcon, UserIcon, UsersIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 interface SpeakerDiarizationProps {
   transcriptId: string;
   speakers: TranscriptSpeaker[];
   utterances: TranscriptUtterance[];
   onSpeakerLabelChange?: (speakerId: string, label: string) => Promise<void>;
+  onUtteranceChange?: (utteranceId: string, text: string) => Promise<void>;
 }
 
 export default function SpeakerDiarization({
   transcriptId,
   speakers = [],
   utterances = [],
-  onSpeakerLabelChange
+  onSpeakerLabelChange,
+  onUtteranceChange
 }: SpeakerDiarizationProps) {
   const [speakerLabels, setSpeakerLabels] = useState<Record<string, string>>({});
   const [editingSpeakerId, setEditingSpeakerId] = useState<string | null>(null);
   const [newLabel, setNewLabel] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [editingUtteranceId, setEditingUtteranceId] = useState<string | null>(null);
+  const [editingUtteranceText, setEditingUtteranceText] = useState('');
 
   // Initialize speaker labels
   useEffect(() => {
@@ -58,17 +63,45 @@ export default function SpeakerDiarization({
     }
   };
 
+  const handleUtteranceEditStart = (utterance: TranscriptUtterance) => {
+    setEditingUtteranceId(utterance.id);
+    setEditingUtteranceText(utterance.text);
+  };
+
+  const handleUtteranceEditCancel = () => {
+    setEditingUtteranceId(null);
+    setEditingUtteranceText('');
+  };
+
+  const handleUtteranceEditSave = async (utteranceId: string) => {
+    if (!editingUtteranceText.trim() || !onUtteranceChange) {
+      handleUtteranceEditCancel();
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await onUtteranceChange(utteranceId, editingUtteranceText.trim());
+      // The parent component will refresh the data, so we don't need to update locally
+    } catch (error) {
+      console.error('Failed to update utterance text:', error);
+    } finally {
+      setIsLoading(false);
+      setEditingUtteranceId(null);
+    }
+  };
+
   const getSpeakerColor = (speakerId: string) => {
     // Generate consistent colors based on speaker ID
     const colors = [
-      'bg-blue-100 text-blue-800',
-      'bg-green-100 text-green-800',
-      'bg-purple-100 text-purple-800',
-      'bg-yellow-100 text-yellow-800',
-      'bg-red-100 text-red-800',
-      'bg-indigo-100 text-indigo-800',
-      'bg-pink-100 text-pink-800',
-      'bg-teal-100 text-teal-800'
+      'bg-blue-100 text-blue-800 ring-blue-200',
+      'bg-green-100 text-green-800 ring-green-200',
+      'bg-purple-100 text-purple-800 ring-purple-200',
+      'bg-yellow-100 text-yellow-800 ring-yellow-200',
+      'bg-red-100 text-red-800 ring-red-200',
+      'bg-indigo-100 text-indigo-800 ring-indigo-200',
+      'bg-pink-100 text-pink-800 ring-pink-200',
+      'bg-teal-100 text-teal-800 ring-teal-200'
     ];
     
     // Use the last digit of the speaker ID to select a color
@@ -85,27 +118,31 @@ export default function SpeakerDiarization({
 
   if (speakers.length === 0) {
     return (
-      <div className="text-center p-4 bg-gray-50 rounded-md">
-        <p className="text-gray-500">No speaker information available.</p>
+      <div className="text-center p-6 bg-gray-50 rounded-md border border-gray-200">
+        <UsersIcon className="h-12 w-12 mx-auto text-gray-400" />
+        <p className="mt-2 text-gray-500">No speaker information available.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <div className="px-4 py-5 sm:px-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">Speakers</h3>
+      <div className="bg-white shadow overflow-hidden sm:rounded-lg border border-gray-200">
+        <div className="px-4 py-5 sm:px-6 bg-gray-50 border-b border-gray-200">
+          <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center">
+            <UsersIcon className="h-5 w-5 mr-2 text-indigo-500" />
+            Speakers
+          </h3>
           <p className="mt-1 max-w-2xl text-sm text-gray-500">
             {speakers.length} {speakers.length === 1 ? 'speaker' : 'speakers'} detected in the audio
           </p>
         </div>
         <ul className="divide-y divide-gray-200">
           {speakers.map(speaker => (
-            <li key={speaker.id} className="px-4 py-4">
+            <li key={speaker.id} className="px-4 py-4 hover:bg-gray-50 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${getSpeakerColor(speaker.id)}`}>
+                  <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${getSpeakerColor(speaker.id)} ring-2`}>
                     {speakerLabels[speaker.id]?.charAt(0).toUpperCase() || '?'}
                   </div>
                   <div className="ml-4">
@@ -122,32 +159,33 @@ export default function SpeakerDiarization({
                         <button
                           onClick={() => handleLabelSave(speaker.id)}
                           disabled={isLoading}
-                          className="ml-2 inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                          className="ml-2 inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
                         >
+                          <CheckIcon className="h-3.5 w-3.5 mr-1" />
                           Save
                         </button>
                         <button
                           onClick={() => setEditingSpeakerId(null)}
-                          className="ml-2 inline-flex items-center px-2.5 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                          className="ml-2 inline-flex items-center px-2.5 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
                         >
+                          <XIcon className="h-3.5 w-3.5 mr-1" />
                           Cancel
                         </button>
                       </div>
-                    ) : (
+                    ) :
                       <div className="flex items-center">
                         <h4 className="text-sm font-medium text-gray-900">{speakerLabels[speaker.id]}</h4>
                         {onSpeakerLabelChange && (
                           <button
                             onClick={() => handleEditStart(speaker.id, speakerLabels[speaker.id])}
-                            className="ml-2 text-indigo-600 hover:text-indigo-900"
+                            className="ml-2 text-indigo-600 hover:text-indigo-900 transition-colors"
+                            title="Edit speaker name"
                           >
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
+                            <PencilIcon className="h-4 w-4" />
                           </button>
                         )}
                       </div>
-                    )}
+                    }
                     <div className="text-sm text-gray-500">
                       {speaker.utterances} utterances • {speaker.wordCount} words
                     </div>
@@ -159,23 +197,82 @@ export default function SpeakerDiarization({
         </ul>
       </div>
 
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <div className="px-4 py-5 sm:px-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">Transcript with Speakers</h3>
+      <div className="bg-white shadow overflow-hidden sm:rounded-lg border border-gray-200">
+        <div className="px-4 py-5 sm:px-6 bg-gray-50 border-b border-gray-200">
+          <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center">
+            <UserIcon className="h-5 w-5 mr-2 text-indigo-500" />
+            Transcript with Speakers
+          </h3>
           <TranscriptionDisclaimer compact={true} />
         </div>
         <ul className="divide-y divide-gray-200">
           {utterances.map(utterance => (
-            <li key={utterance.id} className="px-4 py-4">
+            <li key={utterance.id} className="px-4 py-4 hover:bg-gray-50 transition-colors">
               <div className="flex space-x-3">
-                <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${getSpeakerColor(utterance.speaker)}`}>
+                <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${getSpeakerColor(utterance.speaker)} ring-2`}>
                   {speakerLabels[utterance.speaker]?.charAt(0).toUpperCase() || '?'}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    {speakerLabels[utterance.speaker]} <span className="font-normal text-gray-500">({formatTime(utterance.start)} - {formatTime(utterance.end)})</span>
+                  <p className="text-sm font-medium text-gray-900 flex items-center">
+                    <span>{speakerLabels[utterance.speaker]}</span> 
+                    <span className="font-normal text-gray-500 flex items-center ml-2">
+                      <ClockIcon className="h-3.5 w-3.5 mr-1" />
+                      {formatTime(utterance.start)} - {formatTime(utterance.end)}
+                    </span>
                   </p>
-                  <p className="text-sm text-gray-500">{utterance.text}</p>
+                  
+                  {editingUtteranceId === utterance.id ? (
+                    <div className="mt-2 space-y-2">
+                      <textarea
+                        value={editingUtteranceText}
+                        onChange={(e) => setEditingUtteranceText(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                        rows={4}
+                      />
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleUtteranceEditSave(utterance.id)}
+                          disabled={isLoading}
+                          className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                        >
+                          {isLoading ? (
+                            <>
+                              <svg className="animate-spin -ml-1 mr-2 h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <CheckIcon className="h-3.5 w-3.5 mr-1" />
+                              Save
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={handleUtteranceEditCancel}
+                          className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                        >
+                          <XIcon className="h-3.5 w-3.5 mr-1" />
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start mt-1">
+                      <p className="text-sm text-gray-700 flex-grow whitespace-pre-wrap">{utterance.text}</p>
+                      {onUtteranceChange && (
+                        <button
+                          onClick={() => handleUtteranceEditStart(utterance)}
+                          className="ml-2 text-indigo-600 hover:text-indigo-900 flex-shrink-0 transition-colors"
+                          title="Edit this utterance"
+                        >
+                          <PencilIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </li>

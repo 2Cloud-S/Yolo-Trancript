@@ -223,6 +223,11 @@ export default function TranscribePage() {
       const formData = new FormData();
       formData.append('file', file);
       
+      // Add duration if available as a separate field
+      if (audioDuration) {
+        formData.append('duration_seconds', audioDuration.toString());
+      }
+      
       // Use fetch with AbortController for upload progress tracking
       const controller = new AbortController();
       const signal = controller.signal;
@@ -242,7 +247,7 @@ export default function TranscribePage() {
       setTranscriptionId(data.transcriptionId);
       
       // Redirect to the results page
-      router.push(`/dashboard/transcription/${data.transcriptionId}`);
+      router.push(`/dashboard/transcript/${data.transcriptionId}`);
     } catch (err: any) {
       console.error('Upload error:', err);
       setError(err.message || 'Failed to upload file');

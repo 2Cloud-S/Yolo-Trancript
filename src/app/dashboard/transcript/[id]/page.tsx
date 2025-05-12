@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { getTranscript, updateTranscript, Transcript } from '@/lib/supabase';
-import { getTranscription } from '@/lib/assemblyai';
+import { getTranscription, updateTranscriptionUtterance } from '@/lib/assemblyai';
 import SpeakerDiarization from '@/components/SpeakerDiarization';
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 import TranscriptionDisclaimer from '@/components/TranscriptionDisclaimer';
 import TranscriptExportOptions from '@/components/TranscriptExportOptions';
 import TranscriptDetails from '@/components/TranscriptDetails';
+import EditableTranscript from '@/components/EditableTranscript';
+import TimestampedTranscript from '@/components/TimestampedTranscript';
+import Script from 'next/script';
 
 export default function TranscriptView({ params }: { params: Promise<{ id: string }> }) {
   const [transcript, setTranscript] = useState<Transcript | null>(null);
@@ -161,6 +164,42 @@ export default function TranscriptView({ params }: { params: Promise<{ id: strin
     }
   };
 
+  // Handle full transcript text updates
+  const handleTranscriptTextUpdate = async (text: string): Promise<void> => {
+    if (!transcript) return;
+    
+    try {
+      // Update transcript in database
+      const updatedTranscript = await updateTranscript(transcript.id, {
+        transcription_text: text
+      });
+      
+      // Update local state
+      setTranscript(updatedTranscript);
+    } catch (error) {
+      console.error('Error updating transcript text:', error);
+      throw error;
+    }
+  };
+
+  // Handle individual utterance text updates
+  const handleUtteranceUpdate = async (utteranceId: string, text: string): Promise<void> => {
+    if (!transcript || !transcriptData) return;
+    
+    try {
+      // First, update the utterance in AssemblyAI if possible
+      if (transcript.transcript_id) {
+        await updateTranscriptionUtterance(transcript.transcript_id, utteranceId, text);
+      }
+      
+      // Then reload the transcript to get the updated data
+      await loadTranscript(transcript.id, user.id);
+    } catch (error) {
+      console.error('Error updating utterance:', error);
+      throw error;
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
@@ -210,26 +249,36 @@ export default function TranscriptView({ params }: { params: Promise<{ id: strin
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-100">
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">{transcript.file_name}</h1>
+              <h1 className="text-2xl font-bold text-gray-900">{transcript.file_name}</h1>
               <div className="mt-1 flex items-center">
                 <span className="mr-2 text-sm text-gray-500">
                   {new Date(transcript.created_at).toLocaleDateString()}
                 </span>
                 {transcript.status === 'completed' ? (
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
                     Completed
                   </span>
                 ) : transcript.status === 'processing' ? (
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                    <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
                     Processing
                   </span>
                 ) : (
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                     Error
                   </span>
                 )}
@@ -239,8 +288,12 @@ export default function TranscriptView({ params }: { params: Promise<{ id: strin
               {transcript.status === 'processing' && (
                 <button
                   onClick={refreshTranscript}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-colors"
                 >
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
                   Refresh Status
                 </button>
               )}
@@ -249,8 +302,11 @@ export default function TranscriptView({ params }: { params: Promise<{ id: strin
               )}
               <Link
                 href="/dashboard"
-                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-colors"
               >
+                <svg className="mr-2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
                 Back to Dashboard
               </Link>
             </div>
@@ -260,33 +316,140 @@ export default function TranscriptView({ params }: { params: Promise<{ id: strin
       
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <div className="bg-white shadow rounded-lg p-6">
             {transcript.status === 'processing' ? (
-              <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-                <h3 className="text-lg font-medium text-gray-900">Processing your transcript</h3>
-                <p className="mt-2 text-gray-500">This may take a few minutes depending on the file length.</p>
+            <div className="bg-white shadow overflow-hidden sm:rounded-lg border border-gray-200">
+              <div className="text-center py-16">
+                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-indigo-600 mx-auto mb-6"></div>
+                <h3 className="text-xl font-medium text-gray-900">Processing your transcript</h3>
+                <p className="mt-3 text-gray-500 max-w-md mx-auto">
+                  This may take a few minutes depending on the file length.
+                  The page will automatically update when processing is complete.
+                </p>
                 <button
                   onClick={refreshTranscript}
-                  className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="mt-6 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-colors"
                 >
                   Check Status
                 </button>
               </div>
+              </div>
             ) : transcript.status === 'error' ? (
-              <div className="text-center py-12">
-                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-                  <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-white shadow overflow-hidden sm:rounded-lg border border-gray-200">
+              <div className="text-center py-16">
+                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100">
+                  <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </div>
-                <h3 className="mt-3 text-lg font-medium text-gray-900">Processing Error</h3>
-                <p className="mt-2 text-gray-500">There was an error processing your transcript. Please try again.</p>
+                <h3 className="mt-6 text-xl font-medium text-gray-900">Processing Error</h3>
+                <p className="mt-3 text-gray-500 max-w-md mx-auto">
+                  There was an error processing your transcript. Please try again or contact support if the issue persists.
+                </p>
+                <div className="mt-6 flex justify-center gap-4">
+                  <button
+                    onClick={refreshTranscript}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-colors"
+                  >
+                    Try Again
+                  </button>
+                  <Link
+                    href="/dashboard"
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-colors"
+                  >
+                    Back to Dashboard
+                  </Link>
+                </div>
+              </div>
               </div>
             ) : (
-              <div className="space-y-8">
+            <div className="space-y-6">
+                {/* Add Script to optimize duration loading */}
+                <Script id="duration-fix" strategy="afterInteractive">
+                  {`
+                    // Helper function to ensure duration is properly initialized
+                    function ensureDurationValue() {
+                      try {
+                        document.querySelectorAll('[data-duration-placeholder]').forEach(el => {
+                          // Find the actual duration value
+                          const durationValue = el.getAttribute('data-duration-value');
+                          if (durationValue && el.textContent === '--:--') {
+                            // Format properly with padded zeros
+                            const duration = Number(durationValue);
+                            if (!isNaN(duration)) {
+                              const minutes = Math.floor(duration / 60);
+                              const seconds = Math.floor(duration % 60);
+                              el.textContent = minutes.toString().padStart(2, '0') + ':' + 
+                                               seconds.toString().padStart(2, '0');
+                            }
+                          }
+                        });
+                      } catch (error) {
+                        // Silently handle errors to prevent console warnings
+                        console.debug('Duration format script error:', error);
+                      }
+                    }
+
+                    // Try to get duration from audio/video elements if available
+                    function tryLoadMediaDuration() {
+                      try {
+                        const mediaEl = document.querySelector('audio[data-transcript-audio], video[data-transcript-audio]');
+                        if (mediaEl) {
+                          mediaEl.addEventListener('loadedmetadata', function() {
+                            const duration = mediaEl.duration;
+                            if (duration && !isNaN(duration)) {
+                              document.querySelectorAll('[data-duration-placeholder]').forEach(el => {
+                                // Only update if the current value is a placeholder
+                                if (el.textContent === '--:--') {
+                                  const minutes = Math.floor(duration / 60);
+                                  const seconds = Math.floor(duration % 60);
+                                  el.textContent = minutes.toString().padStart(2, '0') + ':' + 
+                                                   seconds.toString().padStart(2, '0');
+                                  
+                                  // Also update the data attribute for other components
+                                  el.setAttribute('data-duration-value', duration.toString());
+                                }
+                              });
+                            }
+                          });
+                        }
+                      } catch (error) {
+                        console.debug('Media duration detection error:', error);
+                      }
+                    }
+                    
+                    // Run on load and after a short delay to catch race conditions
+                    ensureDurationValue();
+                    setTimeout(ensureDurationValue, 500);
+                    
+                    // Also try to get duration from media elements
+                    tryLoadMediaDuration();
+                    document.addEventListener('DOMContentLoaded', tryLoadMediaDuration);
+                  `}
+                </Script>
+            
                 {/* Transcript Details Component */}
                 <TranscriptDetails transcript={transcript} transcriptData={transcriptData} />
+              
+                {/* Editable Transcript with TranscriptionDisclaimer */}
+                <div className="space-y-4">
+                  <TranscriptionDisclaimer />
+                  
+                  {/* Timestamped Transcript Component */}
+                  {transcriptData && transcriptData.utterances && transcriptData.utterances.length > 0 && (
+                    <TimestampedTranscript
+                      transcriptText={transcript.transcription_text || ''}
+                      utterances={transcriptData.utterances}
+                      speakers={transcriptData.speakers || []}
+                      duration={transcript.duration}
+                    />
+                  )}
+                  
+                  {/* Editable Transcript */}
+                  <EditableTranscript
+                    transcript={transcript}
+                    onSave={handleTranscriptTextUpdate}
+                  />
+                </div>
                 
                 {/* Speaker Diarization Component (if available) */}
                 {transcriptData && transcriptData.speakers && transcriptData.speakers.length > 0 && (
@@ -295,45 +458,60 @@ export default function TranscriptView({ params }: { params: Promise<{ id: strin
                     speakers={transcriptData.speakers}
                     utterances={transcriptData.utterances || []}
                     onSpeakerLabelChange={handleSpeakerLabelChange}
+                    onUtteranceChange={handleUtteranceUpdate}
                   />
                 )}
                 
-                {/* Regular Transcript Text (always shown) */}
-              <div className="prose max-w-none">
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">Full Transcript</h2>
-                  
-                  {/* Transcription Disclaimer */}
-                  <TranscriptionDisclaimer />
-                  
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  {transcript.transcription_text ? (
-                    <p className="whitespace-pre-wrap">{transcript.transcription_text}</p>
-                  ) : (
-                    <p className="text-gray-500">No transcript text available.</p>
-                  )}
-                </div>
-                </div>
-                
                 {/* Sentiment Analysis (if available) */}
                 {transcriptData && transcriptData.sentiment && transcriptData.sentiment.overall && (
-                  <div className="prose max-w-none">
-                    <h2 className="text-lg font-medium text-gray-900 mb-4">Sentiment Analysis</h2>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <p className="text-gray-800">
-                        Overall sentiment: <span className={`font-medium ${
-                          transcriptData.sentiment.overall === 'positive' ? 'text-green-600' :
-                          transcriptData.sentiment.overall === 'negative' ? 'text-red-600' :
-                          'text-gray-600'
-                        }`}>
-                          {transcriptData.sentiment.overall}
-                        </span>
-                      </p>
+                  <div className="bg-white shadow overflow-hidden sm:rounded-lg border border-gray-200">
+                    <div className="px-4 py-5 sm:px-6 bg-gray-50 border-b border-gray-200">
+                      <h2 className="text-lg font-medium text-gray-900 flex items-center">
+                        <svg className="h-5 w-5 mr-2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        Sentiment Analysis
+                      </h2>
+                    </div>
+                    <div className="px-4 py-5 sm:p-6">
+                      <div className="flex items-center">
+                        <div className="mr-4 flex-shrink-0">
+                          <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
+                            transcriptData.sentiment.overall === 'positive' ? 'bg-green-100 text-green-700' :
+                            transcriptData.sentiment.overall === 'negative' ? 'bg-red-100 text-red-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {transcriptData.sentiment.overall === 'positive' ? (
+                              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            ) : transcriptData.sentiment.overall === 'negative' ? (
+                              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            ) : (
+                              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-medium text-gray-900">Overall Sentiment</h3>
+                          <p className={`text-lg font-semibold capitalize ${
+                            transcriptData.sentiment.overall === 'positive' ? 'text-green-600' :
+                            transcriptData.sentiment.overall === 'negative' ? 'text-red-600' :
+                            'text-gray-600'
+                          }`}>
+                            {transcriptData.sentiment.overall}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
             )}
-          </div>
         </div>
       </main>
     </div>

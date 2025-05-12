@@ -90,6 +90,8 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
     
     setError(null);
     setFile(file);
+    // Automatically open advanced options when a file is selected
+    setShowOptions(true);
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
