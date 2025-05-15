@@ -5,7 +5,7 @@ import { ChevronDown } from 'lucide-react';
 
 interface DropdownProps {
   label: string;
-  value: string | number;
+  value: string | number | undefined;
   onChange: (value: string) => void;
   options: {
     value: string | number;
@@ -27,7 +27,7 @@ export default function Dropdown({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Find the selected option's label
-  const selectedOption = options.find(option => option.value === value);
+  const selectedOption = value !== undefined ? options.find(option => option.value === value) : undefined;
   const displayValue = selectedOption ? selectedOption.label : 'Select an option';
 
   const toggleDropdown = () => {

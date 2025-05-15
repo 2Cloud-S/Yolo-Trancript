@@ -61,7 +61,7 @@ export default function EditableTranscript({ transcript, onSave }: EditableTrans
   // Get transcript duration and total words
   const getTranscriptStats = () => {
     const wordCount = transcript.transcription_text?.trim().split(/\s+/).length || 0;
-    const duration = transcript.duration || 0;
+    const duration = transcript.metadata?.duration_seconds || transcript.duration || 0;
     
     return (
       <div className="flex items-center space-x-4 text-sm text-gray-500">

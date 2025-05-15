@@ -3,8 +3,14 @@
 import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Database } from '@/types/supabase';
+import { notFound } from 'next/navigation';
 
 export default function DebugPage() {
+  // Hide this page in production
+  if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_ENABLE_DEBUG_ROUTES !== 'true') {
+    notFound();
+  }
+
   const [authStatus, setAuthStatus] = useState<any>(null);
   const [directCheck, setDirectCheck] = useState<any>(null);
   const [loading, setLoading] = useState(true);

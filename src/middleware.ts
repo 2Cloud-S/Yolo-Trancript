@@ -6,6 +6,27 @@ export async function middleware(request: NextRequest) {
   const url = new URL(request.url);
   const path = url.pathname;
   
+  // Redirect direct access to /transcribe to the dashboard
+  if (path === '/transcribe') {
+    console.log(`[Middleware] Redirecting /transcribe to /dashboard`);
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+  
+  // Check if this is a debug route that should be hidden in production
+  const isDebugRoute = path === '/auth/error' || 
+                       path === '/dashboard/auth-debug' || 
+                       path === '/dashboard/debug' || 
+                       path === '/dashboard/paddle-diagnostic' || 
+                       path === '/dashboard/test-realtime' || 
+                       path === '/test-paddle';
+  
+  // Return 404 for debug routes in production, unless explicitly enabled
+  if (isDebugRoute && process.env.NODE_ENV === 'production' && process.env.ENABLE_DEBUG_ROUTES !== 'true') {
+    console.log(`[Middleware] Blocking access to debug route in production: ${path}`);
+    // Create a Response object with a 404 status
+    return new NextResponse(null, { status: 404 });
+  }
+  
   // Exclude webhook endpoints from middleware processing
   // These need to be accessible by external services without authentication
   if (path.startsWith('/api/webhook') || path === '/webhook-test') {

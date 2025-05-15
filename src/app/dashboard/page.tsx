@@ -92,7 +92,8 @@ export default function Dashboard() {
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <div className="bg-white shadow rounded-lg p-6 mb-8">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Upload a new file</h2>
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Add new transcription</h2>
+            <p className="text-gray-600 mb-4">Upload an audio file or enter a URL to an audio/video file for transcription.</p>
             <FileUpload userId={user?.id} onUploadComplete={handleUploadComplete} />
           </div>
           

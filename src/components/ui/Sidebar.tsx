@@ -81,7 +81,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       name: 'Integration Hub', 
       href: '/dashboard/integrations', 
       icon: Puzzle,
-      description: 'Manage API keys and webhooks'
+      description: 'Manage Integerations'
     },
     { 
       name: 'Accessibility', 

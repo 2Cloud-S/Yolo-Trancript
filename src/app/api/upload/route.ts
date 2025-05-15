@@ -7,7 +7,6 @@ export async function POST(req: Request) {
   try {
     // Create a server-side Supabase client
     const supabase = await createClient();
-    const supabaseAdmin = createAdminClient();
     
     // Authenticate the user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -18,6 +17,9 @@ export async function POST(req: Request) {
         { status: 401 }
       );
     }
+    
+    // Create admin client
+    const supabaseAdmin = createAdminClient();
     
     // Parse the form data
     const formData = await req.formData();

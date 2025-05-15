@@ -2,14 +2,10 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { AssemblyAI } from 'assemblyai';
 
-// Simplify the handler to avoid type issues with dynamic segments
-export async function PUT(request: Request) {
+export async function PUT(request: Request, { params }: any) {
+  const transcriptId = params.id;
+  
   try {
-    // Extract the ID from the URL path
-    const url = new URL(request.url);
-    const pathParts = url.pathname.split('/');
-    const transcriptId = pathParts[pathParts.length - 2]; // Get the ID from the path
-    
     // Create Supabase client
     const supabase = await createClient();
     
