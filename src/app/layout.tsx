@@ -22,8 +22,8 @@ export const metadata: Metadata = {
   description: 'Accurate transcription service powered by AI with features like speaker diarization, custom vocabulary, and sentiment analysis.',
   icons: {
     icon: [
-      { url: '/favicon.ico' },
-      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
       { url: '/images/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
       { url: '/images/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
     ],
@@ -73,11 +73,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
