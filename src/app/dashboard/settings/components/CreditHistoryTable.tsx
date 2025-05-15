@@ -264,7 +264,7 @@ export function CreditHistoryTable() {
                     </TableCell>
                     <TableCell>
                       {transaction.currency === 'USD' ? '$' : ''}
-                      {transaction.amount}
+                      {parseFloat(String(transaction.amount)).toFixed(2)}
                     </TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium 
