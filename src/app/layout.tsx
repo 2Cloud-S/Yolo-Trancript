@@ -23,6 +23,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: '/favicon.ico' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
       { url: '/images/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
       { url: '/images/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
     ],
@@ -30,7 +31,7 @@ export const metadata: Metadata = {
       { url: '/images/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
     ],
     other: [
-      { rel: 'mask-icon', url: '/images/safari-pinned-tab.svg', color: '#5bbad5' },
+      { rel: 'mask-icon', url: '/images/safari-pinned-tab.svg', color: '#FF8C42' },
     ],
   },
   manifest: '/site.webmanifest',
@@ -47,6 +48,7 @@ export const metadata: Metadata = {
         alt: 'Yolo Transcript',
       }
     ],
+    siteName: 'Yolo Transcript',
   },
   twitter: {
     card: 'summary_large_image',
@@ -55,6 +57,13 @@ export const metadata: Metadata = {
     images: ['/images/yolo-transcript-twitter.png'],
     creator: '@Afnanxkhan_ak',
   },
+  verification: {
+    google: 'YOUR_GOOGLE_SITE_VERIFICATION', // Replace with your actual verification code
+  },
+  alternates: {
+    canonical: 'https://yolotranscript.com',
+  },
+  metadataBase: new URL('https://yolotranscript.com'),
 };
 
 export default function RootLayout({
@@ -64,6 +73,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
