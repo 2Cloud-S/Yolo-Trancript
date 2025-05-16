@@ -66,7 +66,7 @@ export default function PodcastTrialPage() {
               Sign Up for Yolo Transcript and Start with 5 Free Credits
             </p>
             <Link 
-              href="https://www.yolo-transcript.com/signup" 
+              href="https://www.yolo-transcript.com/auth/register?redirect=/dashboard" 
               className="bg-white text-orange-600 hover:bg-orange-100 px-8 py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl"
             >
               Start Free Trial
@@ -220,7 +220,7 @@ export default function PodcastTrialPage() {
                 Upload your podcast, get accurate text in minutes.
               </h2>
               <Link 
-                href="https://www.yolo-transcript.com/signup" 
+                href="https://www.yolo-transcript.com/auth/register?redirect=/dashboard" 
                 className="bg-orange-500 text-white hover:bg-orange-600 px-8 py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl"
               >
                 Start Free Trial
@@ -309,7 +309,7 @@ export default function PodcastTrialPage() {
             Claim Your 5 Free Credits (30 Minutes) Now
           </p>
           <Link 
-            href="https://www.yolo-transcript.com/signup" 
+            href="https://www.yolo-transcript.com/auth/register?redirect=/dashboard" 
             className="bg-white text-orange-600 hover:bg-orange-100 px-8 py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl inline-block mb-8"
           >
             Start Free Trial
