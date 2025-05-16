@@ -570,7 +570,7 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
 
   // Add render method for URL input
   const renderUrlInput = () => {
-    return (
+  return (
       <div className="bg-white rounded-lg border p-4 mb-4">
         <h3 className="font-medium mb-2">Transcribe from URL</h3>
         <p className="text-sm text-gray-500 mb-4">
@@ -596,7 +596,7 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
         </div>
         
         {/* URL Submit button */}
-        <button
+            <button
           onClick={handleUrlTranscription}
           disabled={uploading || !mediaUrl}
           className={`w-full py-2 px-4 rounded font-medium ${
@@ -664,12 +664,12 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
       ) : (
         <>
           {/* File Upload Dropzone (existing code) */}
-          <div
-            {...getRootProps()}
+      <div
+        {...getRootProps()}
             className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
               isDragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:bg-gray-50'
             } ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
+        >
             <input {...getInputProps()} />
             
             {file ? (
@@ -680,8 +680,8 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
                 <p className="text-xs text-gray-500">
                   {(file.size / (1024 * 1024)).toFixed(2)} MB
                 </p>
-              </div>
-            ) : (
+          </div>
+        ) : (
               <div className="py-4">
                 <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                 <p className="text-lg font-medium text-gray-900 mb-1">
@@ -740,19 +740,19 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
           </p>
         </div>
       )}
-      
+
       {/* Show/Hide advanced options button - shown for both modes */}
       <div className="mt-4 mb-2">
-        <button
-          type="button"
-          onClick={() => setShowOptions(!showOptions)}
+          <button
+            type="button"
+            onClick={() => setShowOptions(!showOptions)}
           className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
-        >
+          >
           {showOptions ? 'Hide' : 'Show'} advanced options
           <ArrowRight className={`h-3 w-3 ml-1 transition-transform ${showOptions ? 'rotate-90' : ''}`} />
-        </button>
-      </div>
-      
+          </button>
+        </div>
+
       {/* Advanced options panel - shared between both modes */}
       {showOptions && (
         <div className="border rounded p-4 mb-4 bg-gray-50">
@@ -763,7 +763,7 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
               Speaker Detection
             </h4>
             <label className="block text-sm text-gray-500 mb-1">Number of speakers:</label>
-            <Dropdown
+                <Dropdown
               label="Number of speakers"
               options={[
                 { value: '2', label: '2 speakers (default)' },
@@ -773,7 +773,7 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
                 { value: '6', label: '6+ speakers' }
               ]}
               value={diarizationOptions.speakers_expected?.toString() || '2'}
-              onChange={handleSpeakerCountChange}
+                  onChange={handleSpeakerCountChange}
             />
           </div>
           
@@ -823,8 +823,8 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
                 </button>
               </p>
             )}
-          </div>
-          
+              </div>
+              
           {/* Sentiment analysis toggle */}
           <div>
             <h4 className="font-medium mb-2 flex items-center">
@@ -832,23 +832,23 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
               Sentiment Analysis
             </h4>
             <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={enableSentiment}
-                onChange={(e) => setEnableSentiment(e.target.checked)}
+                <input
+                  type="checkbox"
+                  checked={enableSentiment}
+                  onChange={(e) => setEnableSentiment(e.target.checked)}
                 className="mr-2"
-              />
+                />
               <span className="text-sm text-gray-700">Enable sentiment analysis</span>
-            </label>
+                </label>
           </div>
-        </div>
-      )}
-      
+          </div>
+        )}
+
       {showVocabularyManager && userId && (
-        <CustomVocabularyManager
-          userId={userId}
-          onClose={() => {
-            setShowVocabularyManager(false);
+            <CustomVocabularyManager
+              userId={userId}
+              onClose={() => {
+                setShowVocabularyManager(false);
             loadVocabularies();
           }}
         />
@@ -859,7 +859,7 @@ export default function FileUpload({ userId, onUploadComplete }: FileUploadProps
         <Link href="/faq#transcription" className="text-blue-600 hover:text-blue-800">
           Learn more about transcription options
         </Link>
-      </div>
+        </div>
     </div>
   );
 } 
