@@ -76,6 +76,7 @@ export default async function BlogPage() {
                       className="object-cover"
                       priority
                       sizes="(max-width: 768px) 100vw, 50vw"
+                      unoptimized={process.env.NODE_ENV === 'development'}
                     />
                     <div className="absolute top-4 left-4">
                       <span className="bg-yellow-500 text-white text-xs uppercase font-semibold px-3 py-1 rounded-full">
@@ -133,6 +134,7 @@ export default async function BlogPage() {
                         fill
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        unoptimized={process.env.NODE_ENV === 'development'}
                       />
                     </div>
                   )}

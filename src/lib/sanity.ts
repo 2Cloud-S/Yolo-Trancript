@@ -14,7 +14,15 @@ export const client = createClient({
 
 // Helper function to generate image URLs
 const builder = imageUrlBuilder(client);
-export const urlFor = (source: any) => builder.image(source).auto('format').fit('max');
+export const urlFor = (source: any) => {
+  if (!source) return null;
+  return builder.image(source)
+    .auto('format')
+    .fit('max')
+    .quality(80)
+    .width(1920)
+    .height(1080);
+};
 
 // Helper function to get image URL
 export const getImageUrl = (image: any) => {
@@ -35,7 +43,11 @@ export const getAllPostsQuery = `*[_type == "post"] | order(publishedAt desc) {
   excerpt,
   categories[]->{title},
   "author": author->{name, image},
-  mainImage
+  mainImage {
+    asset->,
+    hotspot,
+    crop
+  }
 }`;
 
 // Query to get a post by slug
@@ -48,7 +60,11 @@ export const getPostBySlugQuery = `*[_type == "post" && slug.current == $slug][0
   body,
   "categories": categories[]->title,
   "author": author->{name, image},
-  mainImage
+  mainImage {
+    asset->,
+    hotspot,
+    crop
+  }
 }`;
 
 // Query to get all post slugs
