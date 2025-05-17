@@ -37,10 +37,11 @@ const ptComponents = {
         <figure className="my-10">
           <div className="relative w-full h-96 md:h-[500px] overflow-hidden rounded-lg">
             <Image
-              src={urlFor(value).width(1200).height(800).url()}
+              src={urlFor(value)?.width(1200).height(800).url() || ''}
               alt={value.alt || 'Blog post image'}
               fill
               className="object-contain"
+              sizes="(max-width: 768px) 100vw, 1200px"
             />
           </div>
           {value.alt && (
@@ -106,6 +107,8 @@ export async function generateMetadata({ params }: { params: ParamsType }) {
     };
   }
   
+  const mainImageUrl = post.mainImage ? urlFor(post.mainImage)?.width(1200).height(630).url() : null;
+  
   return {
     title: `${post.title} | Yolo Transcript Blog`,
     description: post.excerpt || `Read ${post.title} on the Yolo Transcript blog`,
@@ -115,7 +118,7 @@ export async function generateMetadata({ params }: { params: ParamsType }) {
       type: 'article',
       publishedTime: post.publishedAt,
       authors: [post.author.name],
-      images: post.mainImage ? [urlFor(post.mainImage).width(1200).height(630).url()] : [],
+      images: mainImageUrl ? [mainImageUrl] : [],
     },
   };
 }
@@ -168,10 +171,11 @@ export default async function BlogPostPage({ params }: Props) {
               {post.author.image && (
                 <div className="relative h-14 w-14 rounded-full overflow-hidden mr-4 ring-2 ring-yellow-50">
                   <Image
-                    src={urlFor(post.author.image).width(100).height(100).url()}
+                    src={urlFor(post.author.image)?.width(100).height(100).url() || ''}
                     alt={post.author.name}
                     fill
                     className="object-cover"
+                    sizes="100px"
                   />
                 </div>
               )}
@@ -199,20 +203,21 @@ export default async function BlogPostPage({ params }: Props) {
           
           {/* Featured Image */}
           {post.mainImage && (
-            <div className="relative w-full h-72 sm:h-96 md:h-[500px] mb-10 rounded-xl overflow-hidden shadow-lg">
+            <div className="relative w-full h-96 md:h-[600px] mb-12 rounded-xl overflow-hidden">
               <Image
-                src={urlFor(post.mainImage).width(1200).height(800).url()}
+                src={urlFor(post.mainImage)?.width(1600).height(900).url() || ''}
                 alt={post.title}
                 fill
                 className="object-cover"
                 priority
+                sizes="(max-width: 768px) 100vw, 1600px"
               />
             </div>
           )}
           
-          {/* Content */}
-          <div className="bg-white rounded-xl shadow-sm p-6 md:p-10 mb-8 prose-headings:text-gray-900 prose-p:text-gray-700">
-            <PortableText value={post.body} components={ptComponents} />
+          {/* Post Content */}
+          <div className="prose prose-lg max-w-none">
+            <PortableText value={post.body || []} components={ptComponents} />
           </div>
           
           {/* Author Bio Card */}
