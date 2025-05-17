@@ -50,10 +50,9 @@ export const getAllPostsQuery = `*[_type == "post"] | order(publishedAt desc) {
   categories[]->{title},
   "author": author->{
     name,
-    "image": image.asset->url
+    image
   },
-  "mainImage": mainImage.asset->url,
-  "mainImageMetadata": mainImage.asset->metadata
+  mainImage
 }`;
 
 // Query to get a post by slug with enhanced image handling
@@ -67,10 +66,9 @@ export const getPostBySlugQuery = `*[_type == "post" && slug.current == $slug][0
   "categories": categories[]->title,
   "author": author->{
     name,
-    "image": image.asset->url
+    image
   },
-  "mainImage": mainImage.asset->url,
-  "mainImageMetadata": mainImage.asset->metadata
+  mainImage
 }`;
 
 // Query to get all post slugs

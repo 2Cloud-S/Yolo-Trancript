@@ -139,7 +139,9 @@ export default function SearchPage() {
                         src={urlFor(post.mainImage)?.width(600).height(400).url() ?? '/placeholder-image.jpg'}
                         alt={post.title}
                         fill
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
+                        priority={false}
                       />
                       
                       {/* Overlay with publish date */}
@@ -170,6 +172,7 @@ export default function SearchPage() {
                             src={urlFor(post.author.image)?.width(100).height(100).url() ?? '/placeholder-image.jpg'}
                             alt={post.author.name}
                             fill
+                            sizes="40px"
                             className="object-cover"
                           />
                         </div>
