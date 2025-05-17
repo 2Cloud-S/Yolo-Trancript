@@ -70,7 +70,7 @@ export default async function BlogPage() {
                 {featuredPost.mainImage && (
                   <div className="relative w-full md:w-2/5 h-64 md:h-auto">
                     <Image
-                      src={urlFor(featuredPost.mainImage)?.url() || ''}
+                      src={urlFor(featuredPost.mainImage)?.width(800).height(600).url() || ''}
                       alt={featuredPost.title}
                       fill
                       className="object-cover"
@@ -99,10 +99,11 @@ export default async function BlogPage() {
                       {featuredPost.author.image && (
                         <div className="relative h-10 w-10 rounded-full overflow-hidden mr-3 ring-2 ring-gray-100">
                           <Image
-                            src={urlFor(featuredPost.author.image).width(80).height(80).url()}
+                            src={urlFor(featuredPost.author.image)?.width(80).height(80).url() || ''}
                             alt={featuredPost.author.name}
                             fill
                             className="object-cover"
+                            sizes="80px"
                           />
                         </div>
                       )}
@@ -129,7 +130,7 @@ export default async function BlogPage() {
                   {post.mainImage && (
                     <div className="relative h-52 w-full overflow-hidden">
                       <Image
-                        src={urlFor(post.mainImage)?.url() || ''}
+                        src={urlFor(post.mainImage)?.width(600).height(400).url() || ''}
                         alt={post.title}
                         fill
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
@@ -152,10 +153,11 @@ export default async function BlogPage() {
                         {post.author.image && (
                           <div className="relative h-8 w-8 rounded-full overflow-hidden mr-2">
                             <Image
-                              src={urlFor(post.author.image).width(50).height(50).url()}
+                              src={urlFor(post.author.image)?.width(50).height(50).url() || ''}
                               alt={post.author.name}
                               fill
                               className="object-cover"
+                              sizes="50px"
                             />
                           </div>
                         )}
