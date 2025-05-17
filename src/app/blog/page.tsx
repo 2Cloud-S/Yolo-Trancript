@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { format } from 'date-fns';
-import { client, getAllPostsQuery, urlFor } from '@/lib/sanity';
+import { client, getAllPostsQuery } from '@/lib/sanity';
 import { trackEvent } from '@/lib/analytics';
 import BlogTracker from '@/components/BlogTracker';
 
@@ -15,9 +15,15 @@ interface Post {
   categories: string[];
   author: {
     name: string;
-    image?: any;
+    image?: string;
   };
-  mainImage?: any;
+  mainImage?: string;
+  mainImageMetadata?: {
+    dimensions: {
+      width: number;
+      height: number;
+    };
+  };
 }
 
 export const metadata = {
@@ -70,13 +76,12 @@ export default async function BlogPage() {
                 {featuredPost.mainImage && (
                   <div className="relative w-full md:w-2/5 h-64 md:h-auto">
                     <Image
-                      src={urlFor(featuredPost.mainImage)?.width(800).height(600).url() || ''}
+                      src={featuredPost.mainImage}
                       alt={featuredPost.title}
                       fill
                       className="object-cover"
                       priority
                       sizes="(max-width: 768px) 100vw, 50vw"
-                      unoptimized={process.env.NODE_ENV === 'development'}
                     />
                     <div className="absolute top-4 left-4">
                       <span className="bg-yellow-500 text-white text-xs uppercase font-semibold px-3 py-1 rounded-full">
@@ -99,11 +104,10 @@ export default async function BlogPage() {
                       {featuredPost.author.image && (
                         <div className="relative h-10 w-10 rounded-full overflow-hidden mr-3 ring-2 ring-gray-100">
                           <Image
-                            src={urlFor(featuredPost.author.image)?.width(80).height(80).url() || ''}
+                            src={featuredPost.author.image}
                             alt={featuredPost.author.name}
                             fill
                             className="object-cover"
-                            sizes="80px"
                           />
                         </div>
                       )}
@@ -130,12 +134,11 @@ export default async function BlogPage() {
                   {post.mainImage && (
                     <div className="relative h-52 w-full overflow-hidden">
                       <Image
-                        src={urlFor(post.mainImage)?.width(600).height(400).url() || ''}
+                        src={post.mainImage}
                         alt={post.title}
                         fill
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                        unoptimized={process.env.NODE_ENV === 'development'}
                       />
                     </div>
                   )}
@@ -153,11 +156,10 @@ export default async function BlogPage() {
                         {post.author.image && (
                           <div className="relative h-8 w-8 rounded-full overflow-hidden mr-2">
                             <Image
-                              src={urlFor(post.author.image)?.width(50).height(50).url() || ''}
+                              src={post.author.image}
                               alt={post.author.name}
                               fill
                               className="object-cover"
-                              sizes="50px"
                             />
                           </div>
                         )}

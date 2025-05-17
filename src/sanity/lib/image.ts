@@ -15,6 +15,4 @@ export const urlFor = (source: SanityImageSource) => {
     .auto('format')
     .fit('max')
     .quality(80)
-    .width(1920)
-    .height(1080)
 }

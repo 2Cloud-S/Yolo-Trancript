@@ -1,6 +1,7 @@
 import { createClient } from 'next-sanity';
 import { apiVersion, dataset, projectId } from '../sanity/env';
 import imageUrlBuilder from '@sanity/image-url';
+import { SanityImageSource } from '@sanity/image-url/lib/types/types';
 
 // Initialize the Sanity client
 export const client = createClient({
@@ -12,16 +13,21 @@ export const client = createClient({
   stega: false,
 });
 
-// Helper function to generate image URLs
+// Initialize the image URL builder
 const builder = imageUrlBuilder(client);
-export const urlFor = (source: any) => {
+
+// Enhanced image URL builder with proper typing and error handling
+export const urlFor = (source: SanityImageSource) => {
   if (!source) return null;
-  return builder.image(source)
-    .auto('format')
-    .fit('max')
-    .quality(80)
-    .width(1920)
-    .height(1080);
+  try {
+    return builder.image(source)
+      .auto('format')
+      .fit('max')
+      .quality(80);
+  } catch (error) {
+    console.error('Error generating image URL:', error);
+    return null;
+  }
 };
 
 // Helper function to get image URL
@@ -34,7 +40,7 @@ export const getImageUrl = (image: any) => {
     .replace('-webp', '.webp')}`;
 }
 
-// Query to get all blog posts
+// Query to get all blog posts with enhanced image handling
 export const getAllPostsQuery = `*[_type == "post"] | order(publishedAt desc) {
   _id,
   title,
@@ -42,15 +48,15 @@ export const getAllPostsQuery = `*[_type == "post"] | order(publishedAt desc) {
   publishedAt,
   excerpt,
   categories[]->{title},
-  "author": author->{name, image},
-  mainImage {
-    asset->,
-    hotspot,
-    crop
-  }
+  "author": author->{
+    name,
+    "image": image.asset->url
+  },
+  "mainImage": mainImage.asset->url,
+  "mainImageMetadata": mainImage.asset->metadata
 }`;
 
-// Query to get a post by slug
+// Query to get a post by slug with enhanced image handling
 export const getPostBySlugQuery = `*[_type == "post" && slug.current == $slug][0] {
   _id,
   title,
@@ -59,12 +65,12 @@ export const getPostBySlugQuery = `*[_type == "post" && slug.current == $slug][0
   excerpt,
   body,
   "categories": categories[]->title,
-  "author": author->{name, image},
-  mainImage {
-    asset->,
-    hotspot,
-    crop
-  }
+  "author": author->{
+    name,
+    "image": image.asset->url
+  },
+  "mainImage": mainImage.asset->url,
+  "mainImageMetadata": mainImage.asset->metadata
 }`;
 
 // Query to get all post slugs
