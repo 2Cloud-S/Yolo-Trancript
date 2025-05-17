@@ -70,11 +70,12 @@ export default async function BlogPage() {
                 {featuredPost.mainImage && (
                   <div className="relative w-full md:w-2/5 h-64 md:h-auto">
                     <Image
-                      src={urlFor(featuredPost.mainImage).width(800).height(600).url()}
+                      src={urlFor(featuredPost.mainImage)?.url() || ''}
                       alt={featuredPost.title}
                       fill
                       className="object-cover"
                       priority
+                      sizes="(max-width: 768px) 100vw, 50vw"
                     />
                     <div className="absolute top-4 left-4">
                       <span className="bg-yellow-500 text-white text-xs uppercase font-semibold px-3 py-1 rounded-full">
@@ -127,10 +128,11 @@ export default async function BlogPage() {
                   {post.mainImage && (
                     <div className="relative h-52 w-full overflow-hidden">
                       <Image
-                        src={urlFor(post.mainImage).width(600).height(400).url()}
+                        src={urlFor(post.mainImage)?.url() || ''}
                         alt={post.title}
                         fill
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                       />
                     </div>
                   )}
