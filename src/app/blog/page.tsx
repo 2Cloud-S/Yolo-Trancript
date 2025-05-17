@@ -25,13 +25,15 @@ export const metadata = {
   description: 'Latest news, updates, and insights about transcription technology and Yolo Transcript',
 };
 
-// Set revalidation time to refresh data every 60 seconds
-export const revalidate = 60;
+// Set revalidation time to refresh data every 30 seconds
+export const revalidate = 30;
 
 // Get blog posts from Sanity
 async function getBlogPosts() {
   try {
-    const posts = await client.fetch(getAllPostsQuery);
+    const posts = await client.fetch(getAllPostsQuery, {}, {
+      next: { revalidate: 30 }
+    });
     return posts;
   } catch (error) {
     console.error('Error fetching blog posts:', error);

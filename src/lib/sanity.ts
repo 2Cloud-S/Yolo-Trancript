@@ -7,11 +7,13 @@ export const client = createClient({
   dataset: process.env.NEXT_PUBLIC_SANITY_DATASET || 'production',
   apiVersion: process.env.NEXT_PUBLIC_SANITY_API_VERSION || '2023-05-03',
   useCdn: process.env.NODE_ENV === 'production',
+  perspective: 'published',
+  stega: false,
 });
 
 // Helper function to generate image URLs
 const builder = imageUrlBuilder(client);
-export const urlFor = (source: any) => builder.image(source);
+export const urlFor = (source: any) => builder.image(source).auto('format').fit('max');
 
 // Query to get all blog posts
 export const getAllPostsQuery = `*[_type == "post"] | order(publishedAt desc) {
