@@ -8,18 +8,25 @@ import { format } from 'date-fns';
 import { client, getAllPostsQuery, urlFor } from '@/lib/sanity';
 import { trackEvent } from '@/lib/analytics';
 
+interface SanityImage {
+  _type: 'image';
+  asset: {
+    _ref: string;
+    _type: 'reference';
+  };
+}
+
 interface Post {
   _id: string;
   title: string;
   slug: { current: string };
   publishedAt: string;
   excerpt?: string;
-  categories: { title: string }[];
+  mainImage?: SanityImage;
   author: {
     name: string;
-    image?: any;
+    image?: SanityImage;
   };
-  mainImage?: any;
 }
 
 export default function SearchPage() {
@@ -129,7 +136,7 @@ export default function SearchPage() {
                   {post.mainImage ? (
                     <div className="relative h-56 w-full overflow-hidden">
                       <Image
-                        src={urlFor(post.mainImage).width(600).height(400).url()}
+                        src={urlFor(post.mainImage)?.width(600).height(400).url() ?? '/placeholder-image.jpg'}
                         alt={post.title}
                         fill
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
@@ -157,20 +164,15 @@ export default function SearchPage() {
                     )}
                     
                     <div className="flex items-center mt-auto pt-4 border-t border-gray-100">
-                      {post.author.image ? (
-                        <div className="flex items-center">
-                          <div className="relative h-8 w-8 rounded-full overflow-hidden mr-3 ring-2 ring-gray-100">
-                            <Image
-                              src={urlFor(post.author.image).width(50).height(50).url()}
-                              alt={post.author.name}
-                              fill
-                              className="object-cover"
-                            />
-                          </div>
-                          <span className="text-sm font-medium text-gray-700">{post.author.name}</span>
+                      {post.author.image && (
+                        <div className="relative h-10 w-10 rounded-full overflow-hidden">
+                          <Image
+                            src={urlFor(post.author.image)?.width(100).height(100).url() ?? '/placeholder-image.jpg'}
+                            alt={post.author.name}
+                            fill
+                            className="object-cover"
+                          />
                         </div>
-                      ) : (
-                        <span className="text-sm font-medium text-gray-700">{post.author.name}</span>
                       )}
                     </div>
                   </div>
