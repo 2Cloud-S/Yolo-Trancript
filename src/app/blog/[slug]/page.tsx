@@ -225,10 +225,11 @@ export default async function BlogPostPage({ params }: Props) {
             {post.author.image && (
               <div className="relative h-20 w-20 flex-shrink-0 rounded-full overflow-hidden ring-4 ring-white">
                 <Image
-                  src={urlFor(post.author.image).width(200).height(200).url()}
+                  src={urlFor(post.author.image)?.width(200).height(200).url() || ''}
                   alt={post.author.name}
                   fill
                   className="object-cover"
+                  sizes="200px"
                 />
               </div>
             )}
