@@ -45,10 +45,10 @@ export default function PartnershipsPage() {
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Upvote Club</h2>
               <p className="text-gray-600 mb-6">
-                A community-driven platform for developers to share and discover the best tools and resources. Through this partnership, we're able to connect with developers and get valuable feedback to improve our service.
+                A community-driven platform for personal brand growth. We are a community of people who help each other grow their personal brand on social media.
               </p>
               <a
-                href="https://upvote.club"
+                href="https://upvote.club/?invite=1b09fa5a"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center text-blue-600 hover:underline"
