@@ -437,9 +437,13 @@ export default function Home() {
             <div>
               <h4 className="text-lg font-bold mb-4">Company</h4>
               <ul className="space-y-2">
-                {['About', 'Contact'].map(item => (
-                  <li key={item}>
-                    <a href={`/${item.toLowerCase()}`} className="text-gray-400 hover:text-white text-sm">{item}</a>
+                {[
+                  { name: 'About', href: '/about' },
+                  { name: 'Contact', href: '/contact' },
+                  { name: 'Partnerships', href: '/partnerships' }
+                ].map(item => (
+                  <li key={item.name}>
+                    <Link href={item.href} className="text-gray-400 hover:text-white text-sm">{item.name}</Link>
                   </li>
                 ))}
               </ul>
