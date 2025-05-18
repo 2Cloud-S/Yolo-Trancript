@@ -2,7 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { PortableText } from '@portabletext/react';
 import { format } from 'date-fns';
-import { client, getPostBySlugQuery, getAllPostSlugsQuery } from '@/lib/sanity';
+import { client, getPostBySlugQuery, getAllPostSlugsQuery, urlFor } from '@/lib/sanity';
 import { notFound } from 'next/navigation';
 import React from 'react';
 import BlogPostTracker from '@/components/BlogPostTracker';
@@ -36,14 +36,15 @@ interface Params {
 const ptComponents = {
   types: {
     image: ({ value }: any) => {
-      if (!value?.asset?._ref) {
+      if (!value?.asset) {
         return null;
       }
+      const imageUrl = value.asset.url || urlFor(value.asset)?.url();
       return (
         <figure className="my-10">
           <div className="relative w-full h-96 md:h-[500px] overflow-hidden rounded-lg">
             <Image
-              src={value.asset.url}
+              src={imageUrl || ''}
               alt={value.alt || 'Blog post image'}
               fill
               className="object-contain"
@@ -207,7 +208,7 @@ export default async function BlogPostPage({ params }: Props) {
           {post.mainImage && (
             <div className="relative w-full h-72 sm:h-96 md:h-[500px] mb-10 rounded-xl overflow-hidden shadow-lg">
               <Image
-                src={post.mainImage}
+                src={urlFor(post.mainImage)?.url() || ''}
                 alt={post.title}
                 fill
                 className="object-cover"
