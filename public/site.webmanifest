@@ -1,6 +1,6 @@
 {
   "name": "Yolo Transcript",
-  "short_name": "YoloTrans",
+  "short_name": "Yolo",
   "icons": [
     {
       "src": "/images/android-chrome-192x192.png",
@@ -11,10 +11,17 @@
       "src": "/images/android-chrome-512x512.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ],
-  "theme_color": "#3B82F6",
-  "background_color": "#ffffff",
+  "theme_color": "#FF8C42",
+  "background_color": "#FFFFFF",
+  "start_url": "/",
   "display": "standalone",
-  "start_url": "/"
+  "orientation": "portrait"
 } 

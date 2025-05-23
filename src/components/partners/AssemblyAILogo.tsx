@@ -10,11 +10,12 @@ export default function AssemblyAILogo() {
       className="block hover:opacity-80 transition-opacity"
     >
       <Image
-        src="https://www.assemblyai.com/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Flogo.5c2c4c4c.png&w=256&q=75"
+        src="/assemblyai.png"
         alt="AssemblyAI Logo"
-        width={200}
-        height={50}
-        className="rounded-lg"
+        width={128}
+        height={128}
+        className="h-16 w-auto"
+        priority
       />
     </Link>
   );

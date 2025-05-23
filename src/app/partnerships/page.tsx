@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import UpvoteClubLogo from '@/components/partners/UpvoteClubLogo';
 import AssemblyAILogo from '@/components/partners/AssemblyAILogo';
 import YoloMascot from '@/components/YoloMascot';
 
@@ -38,28 +37,6 @@ export default function PartnershipsPage() {
           </div>
 
           <div className="space-y-8">
-            {/* Upvote Club Card */}
-            <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-              <div className="mb-6">
-                <UpvoteClubLogo />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Upvote Club</h2>
-              <p className="text-gray-600 mb-6">
-                A community-driven platform for personal brand growth. We are a community of people who help each other grow their personal brand on social media.
-              </p>
-              <a
-                href="https://upvote.club/?invite=1b09fa5a"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center text-blue-600 hover:underline"
-              >
-                Visit Upvote Club
-                <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-            </div>
-
             {/* AssemblyAI Card */}
             <div className="bg-white p-8 border-2 border-gray-900 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               <div className="mb-6">

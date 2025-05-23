@@ -1,0 +1,23 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Main circle background -->
+  <circle cx="16" cy="16" r="15" fill="#FF8C42"/>
+  
+  <!-- Inner circle -->
+  <circle cx="16" cy="15" r="9" fill="#FFB07C"/>
+  
+  <!-- Sound waves (simplified) -->
+  <path d="M24,11 C26,13 26.5,16 25,19" stroke="#333333" strokeWidth="1.5" strokeLinecap="round"/>
+  <path d="M26.5,8 C30,11.5 30.5,16 28,21" stroke="#333333" strokeWidth="1.5" strokeLinecap="round"/>
+  
+  <!-- Waveform in center (simplified) -->
+  <path d="M10,14.5 L12,17 L14,12.5 L16,18.5 L18,13.5 L20,16 L22,13.5" 
+    stroke="#333333" strokeWidth="1.8" strokeLinecap="round"/>
+    
+  <!-- Stylized headphones (abstract) -->
+  <path d="M7.5,11 C6.5,4 11,2 16,2 C21,2 25.5,4 24.5,11" 
+    stroke="#333333" strokeWidth="1.5" fill="none"/>
+    
+  <!-- Headphone ear pieces -->
+  <circle cx="7.5" cy="11" r="2" fill="#333333"/>
+  <circle cx="24.5" cy="11" r="2" fill="#333333"/>
+</svg> 
