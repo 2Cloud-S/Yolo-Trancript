@@ -31,9 +31,14 @@ export default async function TestimonialsPage() {
         reviewBody: t.review,
         datePublished: t.date,
         itemReviewed: {
-          '@type': 'Service',
-          name: 'Yolo Transcript Service',
-          description: 'Professional transcription service'
+          '@type': 'Product',
+          name: 'Yolo Transcript',
+          description: 'Professional transcription service',
+          brand: {
+            '@type': 'Brand',
+            name: 'Yolo Transcript'
+          },
+          category: 'Transcription Service'
         },
         publisher: {
           '@type': 'Organization',
