@@ -6,6 +6,7 @@ import CookieConsentBanner from '@/components/CookieConsentBanner';
 import AuthProvider from '@/components/AuthProvider';
 import { GoogleAnalytics } from '@next/third-parties/google'
 import PageViewTracker from '@/components/Analytics';
+import Script from 'next/script';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -73,6 +74,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <Script
+          defer
+          data-website-id="68337b03bef79813a5d2d177"
+          data-domain="www.yolo-transcript.com"
+          src="https://datafa.st/js/script.js"
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
