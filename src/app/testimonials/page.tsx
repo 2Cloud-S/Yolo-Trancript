@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { client } from '@/sanity/lib/client';
 import YoloMascot from '@/components/YoloMascot';
+import Script from 'next/script';
 
 const TESTIMONIALS_QUERY = `*[_type == "testimonial"] | order(date desc){
   _id, author, review, rating, source, date
@@ -9,8 +10,43 @@ const TESTIMONIALS_QUERY = `*[_type == "testimonial"] | order(date desc){
 export default async function TestimonialsPage() {
   const testimonials = await client.fetch(TESTIMONIALS_QUERY);
 
+  // Create JSON-LD schema for testimonials
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    itemListElement: testimonials.map((t: any, index: number) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      item: {
+        '@type': 'Review',
+        reviewRating: {
+          '@type': 'Rating',
+          ratingValue: t.rating,
+          bestRating: 5
+        },
+        author: {
+          '@type': 'Person',
+          name: t.author
+        },
+        reviewBody: t.review,
+        datePublished: t.date,
+        publisher: {
+          '@type': 'Organization',
+          name: 'Yolo Transcript'
+        }
+      }
+    }))
+  };
+
   return (
     <div className="min-h-screen bg-white">
+      {/* Add JSON-LD schema */}
+      <Script
+        id="testimonials-schema"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
       {/* Header */}
       <header className="bg-[#FFD60A] shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
