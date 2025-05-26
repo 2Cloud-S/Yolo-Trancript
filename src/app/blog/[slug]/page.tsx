@@ -6,6 +6,8 @@ import { client, getPostBySlugQuery, getAllPostSlugsQuery, urlFor } from '@/lib/
 import { notFound } from 'next/navigation';
 import React from 'react';
 import BlogPostTracker from '@/components/BlogPostTracker';
+import GoogleAd from '@/components/GoogleAd';
+import { adsenseTopSlot, adsenseBottomSlot } from '@/sanity/env';
 
 interface Post {
   _id: string;
@@ -26,6 +28,7 @@ interface Post {
       height: number;
     };
   };
+  showAds: boolean;
 }
 
 interface Params {
@@ -217,6 +220,13 @@ export default async function BlogPostPage({ params }: Props) {
             </div>
           )}
           
+          {/* Show ad at the top if enabled */}
+          {post.showAds && (
+            <div className="my-8">
+              <GoogleAd adSlot={adsenseTopSlot} />
+            </div>
+          )}
+          
           {/* Content */}
           <div className="bg-white rounded-xl shadow-sm p-6 md:p-10 mb-8 prose-headings:text-gray-900 prose-p:text-gray-700">
             <PortableText value={post.body} components={ptComponents} />
@@ -254,6 +264,13 @@ export default async function BlogPostPage({ params }: Props) {
               <span>Back to All Articles</span>
             </Link>
           </div>
+          
+          {/* Show ad at the bottom if enabled */}
+          {post.showAds && (
+            <div className="my-8">
+              <GoogleAd adSlot={adsenseBottomSlot} />
+            </div>
+          )}
           
           <BlogPostTracker slug={slug} title={post.title} />
         </div>
